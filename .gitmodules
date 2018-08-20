@@ -1,0 +1,3 @@
+[submodule "lucgen"]
+	path = lucgen
+	url = https://github.com/lipk/lucgen

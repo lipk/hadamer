@@ -1,0 +1,7 @@
+#pragma once
+
+#define DIM @emit(args.dim)@
+#define TREECH @emit(2^args.dim)@
+
+#define MALLOC(type) ((type*) malloc(sizeof(type)))
+#define MALLOCN(type, n) ((type*) malloc(sizeof(type)*n))

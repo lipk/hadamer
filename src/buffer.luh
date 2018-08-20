@@ -1,0 +1,25 @@
+#pragma once
+#include <stdint.h>
+#include <config.h>
+
+typedef struct Buffer {
+	void *data;
+	uint64_t rawsize;
+	uint64_t size[DIM];
+	uint64_t stride[DIM];
+	uint32_t align;
+	uint32_t refcount;
+} Buffer;
+
+Buffer* Buffer_create(uint32_t align, uint64_t size[DIM]);
+void Buffer_destroy(Buffer *buffer);
+
+typedef struct Array {
+	Buffer *buffer;
+	uint64_t size[DIM];
+	uint64_t pos[DIM];
+	uint64_t offset;
+} Array;
+
+Array* Array_create(Buffer *buffer, uint64_t size[DIM], uint64_t pos[DIM]);
+void Array_destroy(Array *array);
