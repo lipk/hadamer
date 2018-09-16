@@ -1,0 +1,22 @@
+#pragma once
+
+#include <buffer.h>
+
+typedef struct Node Node;
+
+typedef struct GridInfo
+{
+	uint64_t itemsize;
+	uint64_t alignment;
+	void (*upsample)(Array *x, Array *y[TREECH]);
+	void (*downsample)(Array *x[TREECH], Array *y);
+} GridInfo;
+
+typedef struct Tree
+{
+	Node *root;
+	GridInfo gridinfo[GRIDNUM];
+	uint64_t blocksize[DIM];
+} Tree;
+
+Tree *Tree_create();

@@ -4,6 +4,7 @@
 
 typedef struct Buffer {
 	void *data;
+	uint32_t itemsize;
 	uint64_t rawsize;
 	uint64_t size[DIM];
 	uint64_t stride[DIM];
@@ -11,7 +12,7 @@ typedef struct Buffer {
 	uint32_t refcount;
 } Buffer;
 
-Buffer* Buffer_create(uint32_t align, uint64_t size[DIM]);
+Buffer* Buffer_create(uint32_t align, uint32_t itemsize, const uint64_t size[DIM]);
 void Buffer_destroy(Buffer *buffer);
 
 typedef struct Array {
@@ -21,5 +22,9 @@ typedef struct Array {
 	uint64_t offset;
 } Array;
 
-Array* Array_create(Buffer *buffer, uint64_t size[DIM], uint64_t pos[DIM]);
+Array* Array_create(Buffer *buffer, const uint64_t size[DIM], const uint64_t pos[DIM]);
 void Array_destroy(Array *array);
+
+#define GET(type, array@for i=1,args.dim do emit(', x' .. i) end@)\
+	(&((type*) array->buffer->data)[array->offset+x1@
+		for i=2,args.dim do emit('+array->buffer->stride['..(i-1)..']*x'..i) end@])

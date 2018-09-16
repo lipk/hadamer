@@ -1,0 +1,212 @@
+#include <tree.h>
+#include <functions.h>
+
+/* todo: remove */
+const uint64_t pos0[DIM] = {@for i=1,args.dim do emit('0,') end@};
+
+typedef struct Node
+{
+	Node *children[TREECH];
+	Node *parent;
+	Array *data[GRIDNUM];
+} Node;
+
+@
+function upname(base)
+	return 'upsamplerFunction_' .. base
+end
+function downname(base)
+	return 'downsamplerFunction_' .. base
+end
+function indent(level)
+	res = ''
+	for i = 1,level do
+		res = res .. '    '
+	end
+	return res
+end
+
+function genUpsampler(name, datatype)
+	ind = 0
+	emit('static void ' .. upname(name) .. '(Array *x, Array *y[TREECH])\n{\n')
+	ind = ind+1
+	for i=1,args.dim do
+		j = args.dim-i+1
+		emit(indent(ind)..'for (int a'..j..' = 0; a'..j..' < 2; ++a'..j..') {\n')
+		ind = ind+1
+	end
+	for i=1,args.dim do
+		j = args.dim-i+1
+		emit(indent(ind)..'for (int b'..j..' = 0; b'..j..' < BLOCKSIZE/2; ++b'..j..') {\n')
+		ind = ind+1
+	end
+	emit(indent(ind)..'Array *arr = y[a1')
+	for i=2,args.dim do
+		emit(' | (a'..i..' << '..(i-1)..')')
+	end
+	emit('];\n')
+	emit(indent(ind)..name..'(GET('..datatype..', x');
+	for i=1,args.dim do
+		emit(', b'..i..'+BLOCKSIZE/2*a'..i)
+	end
+	emit(')');
+	ind = ind+1
+	for i=0,math.floor(2^args.dim)-1 do
+		emit(',\n'..indent(ind)..'GET('..datatype..', arr');
+		for j=1,args.dim do
+			add = ''
+			if i & (1 << (j-1)) ~= 0 then
+				add = '+1'
+			end
+			emit(', 2*b'..j..add)
+		end
+		emit(')')
+	end
+	emit(');\n')
+	ind=ind-1
+	for i=1,args.dim*2+1 do
+		ind = ind-1
+		emit(indent(ind)..'}\n')
+	end
+end
+
+function genDownsampler(name, datatype)
+	ind = 0
+	emit('static void ' .. downname(name) .. '(Array *x[TREECH], Array *y)\n{\n')
+	ind = ind+1
+	for i=1,args.dim do
+		j = args.dim-i+1
+		emit(indent(ind)..'for (int a'..j..' = 0; a'..j..' < 2; ++a'..j..') {\n')
+		ind = ind+1
+	end
+	for i=1,args.dim do
+		j = args.dim-i+1
+		emit(indent(ind)..'for (int b'..j..' = 0; b'..j..' < BLOCKSIZE/2; ++b'..j..') {\n')
+		ind = ind+1
+	end
+	emit(indent(ind)..'Array *arr = x[a1')
+	for i=2,args.dim do
+		emit(' | (a'..i..' << '..(i-1)..')')
+	end
+	emit('];\n')
+	emit(indent(ind)..name..'(')
+	ind = ind+1
+	for i=0,math.floor(2^args.dim)-1 do
+		emit('GET('..datatype..', arr')
+		for j=1,args.dim do
+			add = ''
+			if i & (1 << (j-1)) ~= 0 then
+				add = '+1'
+			end
+			emit(', 2*b'..j..add)
+		end
+		emit('),\n'..indent(ind))
+	end
+	emit('GET('..datatype..', y')
+	for i=1,args.dim do
+		emit(', b'..i..'+BLOCKSIZE/2*a'..i)
+	end
+	emit('));\n')
+	ind=ind-1
+	for i=1,args.dim*2+1 do
+		ind = ind-1
+		emit(indent(ind)..'}\n')
+	end
+end
+
+ups = {}
+downs = {}
+
+for _,grid in pairs(args.grids) do
+	if ups[grid.upsample] == nil then
+		genUpsampler(grid.upsample, grid.datatype)
+		ups[grid.upsample] = true
+	end
+	if (downs[grid.downsample]) == nil then
+		genDownsampler(grid.downsample, grid.datatype)
+		downs[grid.downsample] = true
+	end
+end
+@
+
+static inline bool Node_isLeaf(Node *node)
+{
+	return node->data[0] != NULL;
+}
+
+static Node* Tree_createLeaf(Tree *tree, Node *parent)
+{
+	Node *leaf = MALLOC(Node);
+	leaf->parent = parent;
+	for (int i = 0; i<GRIDNUM; ++i) {
+		Buffer *buffer = Buffer_create(tree->gridinfo[i].alignment,
+									   tree->gridinfo[i].itemsize,
+									   tree->blocksize);
+		leaf->data[i] = Array_create(buffer, tree->blocksize, pos0);
+	}
+	for (int j = 0; j<TREECH; ++j) {
+		leaf->children[j] = NULL;
+	}
+	return leaf;
+}
+
+static void Node_destroy(Node* node) {
+	assert(Node_isLeaf(node));
+	for (int i = 0; i<GRIDNUM; ++i) {
+		DESTROY(Array, node->data[i]);
+	}
+	free(node);
+}
+
+static void Tree_splitNode(Tree *tree, Node* node) {
+	assert(Node_isLeaf(node));
+	for (int i = 0; i<TREECH; ++i) {
+		node->children[i] = Tree_createLeaf(tree, node);
+	}
+	for (int i = 0; i<GRIDNUM; ++i) {
+		Array *newdata[TREECH];
+		for (int j = 0; j<TREECH; ++j) {
+			newdata[j] = node->children[j]->data[i];
+		}
+		tree->gridinfo[i].upsample(node->data[i], newdata);
+		DESTROY(Array, node->data[i]);
+	}
+}
+
+static void Tree_mergeNode(Tree *tree, Node* node) {
+	assert(!Node_isLeaf(node));
+	for (int i = 0; i<GRIDNUM; ++i) {
+		Array *olddata[TREECH];
+		for (int j = 0; j<TREECH; ++j) {
+			olddata[j] = node->children[j]->data[i];
+		}
+		Buffer *buffer = Buffer_create(tree->gridinfo[i].alignment,
+									   tree->gridinfo[i].itemsize,
+									   tree->blocksize);
+		node->data[i] = Array_create(buffer, tree->blocksize, pos0);
+		tree->gridinfo[i].downsample(olddata, node->data[i]);
+		for (int j = 0; j<TREECH; ++j) {
+			DESTROY(Node, node->children[j]);
+		}
+	}
+}
+
+Tree *Tree_create()
+{
+	Tree *tree = MALLOC(Tree);
+	for (int i = 0; i<DIM; ++i) {
+		tree->blocksize[i] = BLOCKSIZE;
+	}
+
+	@
+	i = 0
+	for _,grid in pairs(args.grids) do
+		emit('tree->gridinfo[' .. i .. '].itemsize = sizeof(' .. grid.datatype .. ');\n')
+		emit('tree->gridinfo[' .. i .. '].alignment = sizeof(' .. grid.datatype .. ');\n')
+		emit('tree->gridinfo[' .. i .. '].upsample = &' .. upname(grid.upsample) .. ';\n')
+		emit('tree->gridinfo[' .. i .. '].downsample = &' .. downname(grid.downsample) .. ';\n')
+	end
+	@
+	tree->root = Tree_createLeaf(tree, NULL);
+	return tree;
+}

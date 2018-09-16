@@ -1,7 +1,58 @@
+@
+if args.blocksize % 2 ~= 0 then
+	emit('#error "blocksize must be even"\n')
+end
+upsamplers = {}
+downsamplers = {}
+for _,grid in pairs(args.grids) do
+	if upsamplers[grid.upsample] ~= nil and upsamplers[grid.upsample] ~= grid.datatype then
+		emit('#error "conflicting datatype specifications for ' .. grid.upsample .. '"\n')
+	end
+	if downsamplers[grid.downsample] ~= nil and downsamplers[grid.downsample] ~= grid.datatype then
+		emit('#error "conflicting datatype specifications for ' .. grid.dpwnsample .. '"\n')
+	end
+	if upsamplers[grid.downsample] ~= nil then
+		emit('#error "' .. grid.downsample .. ' specified as both up and downsampler\n')
+	end
+	if downsamplers[grid.upsample] ~= nil then
+		emit('#error "' .. grid.upsample .. ' specified as both up and downsampler\n')
+	end
+	upsamplers[grid.upsample] = grid.datatype
+	downsamplers[grid.downsample] = grid.datatype
+end@
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <assert.h>
+
 #define DIM @emit(args.dim)@
-#define TREECH @emit(2^args.dim)@
+#define TREECH @emit(math.floor(2^args.dim))@
+#define BLOCKSIZE @emit(args.blocksize)@
+#define BLOCKMEMSIZE @emit(math.floor(args.blocksize^args.dim))@
 
 #define MALLOC(type) ((type*) malloc(sizeof(type)))
 #define MALLOCN(type, n) ((type*) malloc(sizeof(type)*n))
+#define DESTROY(type, var) type##_destroy(var); var = NULL
+
+#define UPSAMPLE_FUNC(name, datatype) \
+inline void name(@
+	for i=1,math.floor(2^args.dim) do
+		emit('datatype *x' .. i .. ', ')
+	end
+	emit('datatype *y')@)
+
+#define DOWNSAMPLE_FUNC(name, datatype) \
+inline void name(@
+	emit('datatype *x')
+	for i=1,math.floor(2^args.dim) do
+		emit(', datatype *y' .. i)
+	end@)
+
+#define GRIDNUM @
+	i = 0
+	for _ in pairs(args.grids) do
+		i = i+1
+	end
+	emit(i)@

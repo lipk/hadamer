@@ -3,11 +3,12 @@
 #include <assert.h>
 #include <stdlib.h>
 
-Buffer* Buffer_create(uint32_t align, uint64_t size[DIM])
+Buffer* Buffer_create(uint32_t align, uint32_t itemsize, const uint64_t size[])
 {
 	Buffer *buffer = MALLOC(Buffer);
 	buffer->align = align;
-	buffer->rawsize = 1;
+	buffer->itemsize = itemsize;
+	buffer->rawsize = itemsize;
 	for (int i = 0; i<DIM; ++i) {
 		buffer->rawsize *= size[i];
 		buffer->size[i] = size[i];
@@ -28,7 +29,7 @@ void Buffer_destroy(Buffer *buffer)
 	free(buffer);
 }
 
-Array* Array_create(Buffer *buffer,	uint64_t size[DIM], uint64_t pos[DIM])
+Array* Array_create(Buffer *buffer,	const uint64_t size[], const uint64_t pos[])
 {
 	Array *array = MALLOC(Array);
 	array->buffer = buffer;
@@ -43,6 +44,7 @@ Array* Array_create(Buffer *buffer,	uint64_t size[DIM], uint64_t pos[DIM])
 
 void Array_destroy(Array *array)
 {
+	assert(array->buffer->refcount > 0);
 	array->buffer->refcount -= 1;
 	if (array->buffer->refcount == 0) {
 		Buffer_destroy(array->buffer);
