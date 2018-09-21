@@ -26,5 +26,5 @@ Array* Array_create(Buffer *buffer, const uint64_t size[DIM], const uint64_t pos
 void Array_destroy(Array *array);
 
 #define GET(type, array@for i=1,args.dim do emit(', x' .. i) end@)\
-	(&((type*) array->buffer->data)[array->offset+x1@
-		for i=2,args.dim do emit('+array->buffer->stride['..(i-1)..']*x'..i) end@])
+	(&((type*) array->buffer->data)[array->offset+(x1)@
+		for i=2,args.dim do emit('+array->buffer->stride['..(i-1)..']*(x'..i..')') end@])

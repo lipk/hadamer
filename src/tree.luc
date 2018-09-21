@@ -1,15 +1,9 @@
 #include <tree.h>
 #include <functions.h>
+#include <stdio.h>
 
 /* todo: remove */
 const uint64_t pos0[DIM] = {@for i=1,args.dim do emit('0,') end@};
-
-typedef struct Node
-{
-	Node *children[TREECH];
-	Node *parent;
-	Array *data[GRIDNUM];
-} Node;
 
 @
 function upname(base)
@@ -138,6 +132,7 @@ static Node* Tree_createLeaf(Tree *tree, Node *parent)
 {
 	Node *leaf = MALLOC(Node);
 	leaf->parent = parent;
+	leaf->action = NOTHING;
 	for (int i = 0; i<GRIDNUM; ++i) {
 		Buffer *buffer = Buffer_create(tree->gridinfo[i].alignment,
 									   tree->gridinfo[i].itemsize,
@@ -176,6 +171,7 @@ static void Tree_splitNode(Tree *tree, Node* node) {
 static void Tree_mergeNode(Tree *tree, Node* node) {
 	assert(!Node_isLeaf(node));
 	for (int i = 0; i<GRIDNUM; ++i) {
+		assert(Node_isLeaf(node->children[i]));
 		Array *olddata[TREECH];
 		for (int j = 0; j<TREECH; ++j) {
 			olddata[j] = node->children[j]->data[i];
@@ -209,4 +205,33 @@ Tree *Tree_create()
 	@
 	tree->root = Tree_createLeaf(tree, NULL);
 	return tree;
+}
+
+static void Node_restructure(Tree *tree, Node *node)
+{
+	if (!Node_isLeaf(node)) {
+		int anyAction = NOTHING, allAction = DEREFINE;
+		bool nonLeafChild = 0;
+		for (int i = 0; i<TREECH; ++i) {
+			anyAction |= node->children[i]->action;
+			allAction &= node->children[i]->action;
+			nonLeafChild |= Node_isLeaf(node->children[i]);
+		}
+		if (!(anyAction & REFINE) && (allAction & DEREFINE) && nonLeafChild) {
+			Tree_mergeNode(tree, node);
+		} else {
+			for (int i = 0; i<TREECH; ++i) {
+				Node_restructure(tree, node->children[i]);
+			}
+		}
+	} else {
+		if (node->action & REFINE) {
+			Tree_splitNode(tree, node);
+		}
+	}
+}
+
+void Tree_restructure(Tree *tree)
+{
+	Node_restructure(tree, tree->root);
 }
