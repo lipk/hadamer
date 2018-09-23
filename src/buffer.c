@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <util.h>
 
 Buffer* Buffer_create(uint32_t align, uint32_t itemsize, const uint64_t size[])
 {

@@ -1,0 +1,116 @@
+#include <refplan.h>
+#include <util.h>
+
+typedef struct Node Node;
+
+static int getSingleDifferingBit(uint32_t a, uint32_t b)
+{
+	uint32_t c = a ^ b;
+	if (c == 0) {
+		return -1;
+	}
+	int result = 0;
+	while (c % 2 == 0) {
+		c >>= 1;
+		result++;
+	}
+	if (c == 1) {
+		return result;
+	} else {
+		return -1;
+	}
+}
+
+RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
+									   RefinePlan *plan2, uint32_t index2,
+									   uint32_t currentLevel)
+{
+	int diffBit = getSingleDifferingBit(index1, index2);
+	if (plan1->level != plan2->level || diffBit == -1) {
+        return NULL;
+    }
+    for (int i = 0; i<DIM; ++i) {
+		if (i == diffBit) {
+            continue;
+        }
+        if (plan1->pos[i] != plan2->pos[i] || plan1->size[i] != plan2->size[i]) {
+            return NULL;
+        }
+    }
+    RefinePlan *merged = MALLOC(RefinePlan);
+	merged->level = plan1->level;
+    for (int i = 0; i<DIM; ++i) {
+		if (i == diffBit) {
+			if (index1 & (1 << i)) {
+				merged->pos[i] = plan2->pos[i];
+			} else {
+				merged->pos[i] = plan1->pos[i];
+			}
+            merged->size[i] = plan1->size[i] + plan2->size[i];
+        } else {
+            merged->pos[i] = plan1->pos[i];
+            merged->size[i] = plan1->size[i];
+            if (index1 & (1 << i)) {
+				merged->pos[i] += 1 << (merged->level - currentLevel - 1);
+            }
+		}
+	}
+	Buffer *nodesBuf = Buffer_create(sizeof(Node*), sizeof(Node*), merged->size);
+	uint64_t pos1[DIM], pos2[DIM], pos3[DIM];
+	for (int i = 0; i<DIM; ++i) {
+		pos1[i] = 0;
+		pos2[i] = 0;
+		pos3[i] = 0;
+		if (i == diffBit) {
+			if (index1 & (1 << i)) {
+				pos1[i] = merged->size[i];
+			} else {
+				pos2[i] = merged->size[i];
+			}
+		}
+	}
+	Array *array1 = Array_create(nodesBuf, plan1->size, pos1);
+	Array *array2 = Array_create(nodesBuf, plan1->size, pos1);
+	@
+    function indent(level)
+        res = ''
+        for i = 1,level do
+            res = res .. '    '
+        end
+        return res
+    end
+    function copyNodes(src, dst)
+        ind = 0;
+        for i=0,args.dim-1 do
+            emit(indent(ind)..'for (uint64_t x'..i..'=0;x'..i..'<'..dst..'->size['..i..'];++x'..i..'){\n')
+            ind = ind+1
+        end
+        emit(indent(ind)..'*GET(Node*,'..dst)
+        for i=0,args.dim-1 do
+            emit(',x'..i)
+        end
+        emit(') = *GET(Node*,'..src)
+        for i=0,args.dim-1 do
+            emit(',x'..i)
+        end
+        emit(');\n');
+        for i=0,args.dim-1 do
+            ind = ind-1
+            emit(indent(ind)..'}\n')
+        end
+    end
+    copyNodes('plan1->nodes', 'array1')
+    copyNodes('plan2->nodes', 'array2')
+	@
+	Array *final = Array_create(nodesBuf, merged->size, pos3);
+	merged->nodes = final;
+	DESTROY(Array, array1);
+	DESTROY(Array, array2);
+    return merged;
+}
+
+void RefinePlan_destroy(RefinePlan *plan)
+{
+	DESTROY(Array, plan->nodes);
+	free(plan);
+}

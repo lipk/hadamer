@@ -32,10 +32,6 @@ end@
 #define BLOCKSIZE @emit(args.blocksize)@
 #define BLOCKMEMSIZE @emit(math.floor(args.blocksize^args.dim))@
 
-#define MALLOC(type) ((type*) malloc(sizeof(type)))
-#define MALLOCN(type, n) ((type*) malloc(sizeof(type)*n))
-#define DESTROY(type, var) type##_destroy(var); free(var); var = NULL
-
 #define DOWNSAMPLE_FUNC(name, datatype) \
 static inline void name(@
 	for i=1,math.floor(2^args.dim) do

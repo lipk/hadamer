@@ -1,6 +1,7 @@
 #include <tree.h>
 #include <functions.h>
 #include <stdio.h>
+#include <util.h>
 
 /* todo: remove */
 const uint64_t pos0[DIM] = {@for i=1,args.dim do emit('0,') end@};
@@ -132,6 +133,11 @@ static Node* Tree_createLeaf(Tree *tree, Node *parent)
 {
 	Node *leaf = MALLOC(Node);
 	leaf->parent = parent;
+	if (parent == NULL) {
+		leaf->level = 0;
+	} else {
+		leaf->level = parent->level+1;
+	}
 	leaf->action = NOTHING;
 	for (int i = 0; i<GRIDNUM; ++i) {
 		Buffer *buffer = Buffer_create(tree->gridinfo[i].alignment,
@@ -205,6 +211,24 @@ Tree *Tree_create()
 	@
 	tree->root = Tree_createLeaf(tree, NULL);
 	return tree;
+}
+
+static void Node_calculateRefinePlan(Node *node)
+{
+    if (Node_isLeaf(node)) {
+        if (!(node->action & REFINE)) {
+            return;
+        }
+        RefinePlan *plan = MALLOC(RefinePlan);
+        plan->level = node->level;
+        for (int i = 0; i<DIM; ++i) {
+            plan->pos[i] = 0;
+            plan->size[i] = 1;
+        }
+        Vector_init(&plan->nodes);
+        Vector_push(&plan->nodes, node);
+        Vector_push(&node->refplan, MALLOC(RefinePlan));
+    }
 }
 
 static void Node_restructure(Tree *tree, Node *node)
