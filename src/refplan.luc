@@ -30,10 +30,19 @@ RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
         return NULL;
     }
     for (int i = 0; i<DIM; ++i) {
-		if (i == diffBit) {
-            continue;
-        }
-        if (plan1->pos[i] != plan2->pos[i] || plan1->size[i] != plan2->size[i]) {
+        if (i == diffBit) {
+            if (index1 & (1 << i)) {
+                if (plan1->pos[i] != 0 ||
+                    plan2->pos[i] + plan2->size[i] != 1 << (plan2->level - currentLevel - 1)) {
+                    return NULL;
+                }
+            } else {
+                if (plan2->pos[i] != 0 ||
+                    plan1->pos[i] + plan1->size[i] != 1 << (plan1->level - currentLevel - 1)) {
+                    return NULL;
+                }
+            }
+        } else if (plan1->pos[i] != plan2->pos[i] || plan1->size[i] != plan2->size[i]) {
             return NULL;
         }
     }

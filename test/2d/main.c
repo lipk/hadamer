@@ -43,20 +43,28 @@ void test_basic() {
 	assert(tree->root->data[0] != NULL);
 }
 
-void test_merge_plan() {
+void test_merge_plan_simple() {
+	uint64_t bufsize[2] = {2, 1};
+	Buffer *buf = Buffer_create(8, 8, bufsize);
 	RefinePlan plan1;
+	uint64_t npos1[2] = {0, 0};
+	uint64_t nsize1[2] = {1, 1};
 	plan1.level = 3;
 	plan1.pos[0] = 0;
 	plan1.pos[1] = 0;
 	plan1.size[0] = 1;
 	plan1.size[1] = 1;
+	plan1.nodes = Array_create(buf, nsize1, npos1);
 
 	RefinePlan plan2;
+	uint64_t npos2[2] = {1, 0};
+	uint64_t nsize2[2] = {1, 1};
 	plan2.level = 3;
 	plan2.pos[0] = 0;
 	plan2.pos[1] = 1;
 	plan2.size[0] = 1;
 	plan2.size[1] = 1;
+	plan2.nodes = Array_create(buf, nsize2, npos2);
 
 	{
 		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 0, &plan1, 1, 2);
@@ -122,11 +130,16 @@ void test_merge_plan() {
 		assert(merged->size[1] == 2);
 		DESTROY(RefinePlan, merged);
 	}
+
+	{
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 1, &plan2, 3, 1);
+		assert(merged == NULL);
+	}
 }
 
 int main() {
 	test_basic();
 	test_sampling();
-	test_merge_plan();
+	test_merge_plan_simple();
 	return 0;
 }
