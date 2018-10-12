@@ -10,6 +10,7 @@ typedef struct RefinePlan
 	uint64_t pos[DIM];
 	uint64_t size[DIM];
 	Array *nodes;
+	bool propagate;
 } RefinePlan;
 
 RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,

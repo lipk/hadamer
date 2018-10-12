@@ -34,13 +34,13 @@ void test_basic() {
 	assert(tree->root->data != NULL);
 	tree->root->action = REFINE;
 	Tree_restructure(tree);
-	assert(tree->root->data[0] == NULL);
+	assert(tree->root->children[0] != NULL);
 	for (int i = 0; i<TREECH; ++i) {
 		assert(tree->root->children[i]->data[0] != NULL);
 		tree->root->children[i]->action = DEREFINE;
 	}
 	Tree_restructure(tree);
-	assert(tree->root->data[0] != NULL);
+	assert(tree->root->children[0] == NULL);
 }
 
 void test_merge_plan_simple() {

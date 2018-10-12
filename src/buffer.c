@@ -43,6 +43,16 @@ Array* Array_create(Buffer *buffer,	const uint64_t size[], const uint64_t pos[])
 	return array;
 }
 
+Array* Array_createWithBuffer(uint32_t align, uint32_t itemsize, const uint64_t size[DIM])
+{
+	Buffer *buffer = Buffer_create(align, itemsize, size);
+	uint64_t pos[DIM];
+	for (int i = 0; i<DIM; ++i) {
+		pos[i] = 0;
+	}
+	return Array_create(buffer, size, pos);
+}
+
 void Array_destroy(Array *array)
 {
 	assert(array->buffer->refcount > 0);
