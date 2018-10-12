@@ -25,45 +25,47 @@ RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
 									   RefinePlan *plan2, uint32_t index2,
 									   uint32_t currentLevel)
 {
-	int diffBit = getSingleDifferingBit(index1, index2);
-	if (plan1->level != plan2->level || diffBit == -1) {
+    if (plan1->level != plan2->level) {
         return NULL;
     }
-    for (int i = 0; i<DIM; ++i) {
-        if (i == diffBit) {
-            if (index1 & (1 << i)) {
-                if (plan1->pos[i] != 0 ||
-                    plan2->pos[i] + plan2->size[i] != 1 << (plan2->level - currentLevel - 1)) {
-                    return NULL;
-                }
-            } else {
-                if (plan2->pos[i] != 0 ||
-                    plan1->pos[i] + plan1->size[i] != 1 << (plan1->level - currentLevel - 1)) {
-                    return NULL;
-                }
-            }
-        } else if (plan1->pos[i] != plan2->pos[i] || plan1->size[i] != plan2->size[i]) {
-            return NULL;
-        }
-    }
+
     RefinePlan *merged = MALLOC(RefinePlan);
 	merged->level = plan1->level;
     merged->propagate = true;
+    uint64_t offset1 = 1 << (plan1->level - currentLevel - 1);
+    uint64_t offset2 = 1 << (plan2->level - currentLevel - 1);
+    int diffBit = -1;
+    int mismatch = 0;
     for (int i = 0; i<DIM; ++i) {
-		if (i == diffBit) {
-			if (index1 & (1 << i)) {
-				merged->pos[i] = plan2->pos[i];
-			} else {
-				merged->pos[i] = plan1->pos[i];
-			}
-            merged->size[i] = plan1->size[i] + plan2->size[i];
-        } else {
-            merged->pos[i] = plan1->pos[i];
-            merged->size[i] = plan1->size[i];
-            if (index1 & (1 << i)) {
-				merged->pos[i] += 1 << (merged->level - currentLevel - 1);
+        uint64_t posoff1 = index1 & (1 << i) ? offset1 : 0;
+        uint64_t posoff2 = index2 & (1 << i) ? offset2 : 0;
+        if ((index1 ^ index2) & (1 << i)) {
+            if (diffBit != -1) {
+                free(merged);
+                return NULL;
+            } else {
+                diffBit = i;
             }
-		}
+        }
+        if (plan1->pos[i] + posoff1 == plan2->pos[i] + posoff2
+            && plan1->size[i] == plan2->size[i]) {
+            merged->pos[i] = plan1->pos[i] + posoff1;
+            merged->size[i] = plan1->size[i];
+        } else if (mismatch > 0) {
+            free(merged);
+            return NULL;
+        } else if (plan1->pos[i] + posoff1 + plan1->size[i] == plan2->pos[i] + posoff2) {
+            merged->pos[i] = plan1->pos[i] + posoff1;
+            merged->size[i] = plan1->size[i] + plan2->size[i];
+            mismatch++;
+        } else if (plan2->pos[i] + posoff2 + plan2->size[i] == plan1->pos[i] + posoff1) {
+            merged->pos[i] = plan2->pos[i] + posoff2;
+            merged->size[i] = plan1->size[i] + plan2->size[i];
+            mismatch++;
+        } else {
+            free(merged);
+            return NULL;
+        }
 	}
 	Buffer *nodesBuf = Buffer_create(sizeof(Node*), sizeof(Node*), merged->size);
 	uint64_t pos1[DIM], pos2[DIM], pos3[DIM];
@@ -80,7 +82,7 @@ RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
 		}
 	}
 	Array *array1 = Array_create(nodesBuf, plan1->size, pos1);
-	Array *array2 = Array_create(nodesBuf, plan1->size, pos1);
+    Array *array2 = Array_create(nodesBuf, plan2->size, pos2);
     @
     function copyNodes(src, dst)
         for i=0,args.dim-1 do
