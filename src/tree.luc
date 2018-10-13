@@ -231,35 +231,43 @@ static void Node_calculateRefinePlan(Node *node)
         Vector_push(&node->refplan, plan);
     } else {
         bool changed = false;
+        for (uint32_t i = 0; i<TREECH; ++i) {
+            for (uint32_t j = 0; j<node->children[i]->refplan.size;) {
+                RefinePlan* plan = (RefinePlan*) node->children[i]->refplan.data[j];
+                if (plan->propagate) {
+                    Vector_push(&node->refplan, plan);
+                    RefinePlan_propagate(plan, i, node->level);
+                    Vector_swapErase(&node->children[i]->refplan, j);
+                } else {
+                    j++;
+                }
+            }
+        }
         do {
-            for (uint32_t ci = 0; ci<TREECH; ++ci) {
-                for (uint32_t cj = 0; cj<TREECH; ++cj) {
-                    if (ci == cj) {
+            for (uint32_t pi = 0; pi<node->refplan.size; ++pi) {
+                RefinePlan *plan1 = (RefinePlan*) node->refplan.data[pi];
+                if (!plan1->propagate) {
+                    continue;
+                }
+                for (uint32_t pj = 0; pj<node->refplan.size; ++pj) {
+                    RefinePlan *plan2 = (RefinePlan*) node->refplan.data[pj];
+                    if (!plan2->propagate) {
                         continue;
                     }
-                    for (uint32_t pi = 0; pi<node->children[ci]->refplan.size; ++pi) {
-                        RefinePlan *plan1 = (RefinePlan*) node->children[ci]->refplan.data[pi];
-                        if (!plan1->propagate) {
-                            continue;
+                    RefinePlan *merged = RefinePlan_mergeIfPossible(
+                        plan1, plan2, node->level);
+                    if (merged != NULL) {
+                        DESTROY(RefinePlan, node->refplan.data[pi]);
+                        DESTROY(RefinePlan, node->refplan.data[pj]);
+                        Vector_swapErase(&node->refplan, pi);
+                        if (pj == node->refplan.size - 2) {
+                            pj = pi;
                         }
-                        for (uint32_t pj = 0; pj<node->children[cj]->refplan.size; ++pj) {
-                            RefinePlan *plan2 = (RefinePlan*) node->children[cj]->refplan.data[pj];
-                            if (!plan2->propagate) {
-                                continue;
-                            }
-                            RefinePlan *merged = RefinePlan_mergeIfPossible(
-                                plan1, plan2, node->level);
-                            if (merged != NULL) {
-                                DESTROY(RefinePlan, node->children[ci]->refplan.data[pi]);
-                                DESTROY(RefinePlan, node->children[cj]->refplan.data[pj]);
-                                Vector_swapErase(&node->children[ci]->refplan, pi);
-                                Vector_swapErase(&node->children[cj]->refplan, pj);
-                                Vector_push(&node->refplan, merged);
-                                changed = true;
-                                if (pi == node->children[ci]->refplan.size) {
-                                    break;
-                                }
-                            }
+                        Vector_swapErase(&node->refplan, pj);
+                        Vector_push(&node->refplan, merged);
+                        changed = true;
+                        if (pi == node->refplan.size) {
+                            break;
                         }
                     }
                 }
