@@ -13,8 +13,8 @@ typedef struct RefinePlan
 	bool propagate;
 } RefinePlan;
 
-RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
-                                       RefinePlan *plan2, uint32_t index2,
-                                       uint32_t currentLevel);
+void RefinePlan_propagate(RefinePlan *plan, uint32_t index, uint32_t currentLevel);
+RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, RefinePlan *plan2,
+									   uint32_t currentLevel);
 
 void RefinePlan_destroy(RefinePlan *plan);

@@ -248,7 +248,7 @@ static void Node_calculateRefinePlan(Node *node)
                                 continue;
                             }
                             RefinePlan *merged = RefinePlan_mergeIfPossible(
-                                plan1, ci, plan2, cj, node->level);
+                                plan1, plan2, node->level);
                             if (merged != NULL) {
                                 DESTROY(RefinePlan, node->children[ci]->refplan.data[pi]);
                                 DESTROY(RefinePlan, node->children[cj]->refplan.data[pj]);

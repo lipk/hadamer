@@ -43,31 +43,41 @@ void test_basic() {
 	assert(tree->root->children[0] == NULL);
 }
 
+void init_refplan1(Buffer *buf, RefinePlan *plan) {
+	uint64_t npos[2] = {0, 0};
+	uint64_t nsize[2] = {1, 1};
+	plan->propagate = true;
+	plan->level = 3;
+	plan->pos[0] = 0;
+	plan->pos[1] = 0;
+	plan->size[0] = 1;
+	plan->size[1] = 1;
+	plan->nodes = Array_create(buf, nsize, npos);
+}
+
+void init_refplan2(Buffer *buf, RefinePlan *plan) {
+	uint64_t npos[2] = {0, 0};
+	uint64_t nsize[2] = {1, 1};
+	plan->propagate = true;
+	plan->level = 3;
+	plan->pos[0] = 0;
+	plan->pos[1] = 1;
+	plan->size[0] = 1;
+	plan->size[1] = 1;
+	plan->nodes = Array_create(buf, nsize, npos);
+}
+
 void test_merge_plan_simple() {
 	uint64_t bufsize[2] = {2, 1};
 	Buffer *buf = Buffer_create(8, 8, bufsize);
-	RefinePlan plan1;
-	uint64_t npos1[2] = {0, 0};
-	uint64_t nsize1[2] = {1, 1};
-	plan1.level = 3;
-	plan1.pos[0] = 0;
-	plan1.pos[1] = 0;
-	plan1.size[0] = 1;
-	plan1.size[1] = 1;
-	plan1.nodes = Array_create(buf, nsize1, npos1);
-
-	RefinePlan plan2;
-	uint64_t npos2[2] = {1, 0};
-	uint64_t nsize2[2] = {1, 1};
-	plan2.level = 3;
-	plan2.pos[0] = 0;
-	plan2.pos[1] = 1;
-	plan2.size[0] = 1;
-	plan2.size[1] = 1;
-	plan2.nodes = Array_create(buf, nsize2, npos2);
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 0, &plan1, 1, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 0, 2);
+		RefinePlan_propagate(&plan2, 1, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged != NULL);
 		assert(merged->level == 3);
 		assert(merged->pos[0] == 0);
@@ -78,7 +88,12 @@ void test_merge_plan_simple() {
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 0, &plan1, 2, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 0, 2);
+		RefinePlan_propagate(&plan2, 2, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged != NULL);
 		assert(merged->level == 3);
 		assert(merged->pos[0] == 0);
@@ -89,12 +104,22 @@ void test_merge_plan_simple() {
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 0, &plan1, 3, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 0, 2);
+		RefinePlan_propagate(&plan2, 3, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged == NULL);
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 1, &plan1, 0, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 1, 2);
+		RefinePlan_propagate(&plan2, 0, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged != NULL);
 		assert(merged->level == 3);
 		assert(merged->pos[0] == 0);
@@ -105,7 +130,12 @@ void test_merge_plan_simple() {
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 1, &plan1, 3, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 1, 2);
+		RefinePlan_propagate(&plan2, 3, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged != NULL);
 		assert(merged->level == 3);
 		assert(merged->pos[0] == 1);
@@ -116,12 +146,22 @@ void test_merge_plan_simple() {
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 1, &plan1, 2, 2);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 1, 2);
+		RefinePlan_propagate(&plan2, 2, 2);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 2);
 		assert(merged == NULL);
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan2, 1, &plan1, 3, 1);
+		RefinePlan plan1, plan2;
+		init_refplan2(buf, &plan1);
+		init_refplan1(buf, &plan2);
+		RefinePlan_propagate(&plan1, 1, 1);
+		RefinePlan_propagate(&plan2, 3, 1);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 1);
 		assert(merged != NULL);
 		assert(merged->level == 3);
 		assert(merged->pos[0] == 2);
@@ -132,7 +172,12 @@ void test_merge_plan_simple() {
 	}
 
 	{
-		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, 1, &plan2, 3, 1);
+		RefinePlan plan1, plan2;
+		init_refplan1(buf, &plan1);
+		init_refplan2(buf, &plan2);
+		RefinePlan_propagate(&plan1, 1, 1);
+		RefinePlan_propagate(&plan2, 3, 1);
+		RefinePlan *merged = RefinePlan_mergeIfPossible(&plan1, &plan2, 1);
 		assert(merged == NULL);
 	}
 }

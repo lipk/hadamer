@@ -21,60 +21,60 @@ static int getSingleDifferingBit(uint32_t a, uint32_t b)
 	}
 }
 
-RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, uint32_t index1,
-									   RefinePlan *plan2, uint32_t index2,
-									   uint32_t currentLevel)
+void RefinePlan_propagate(RefinePlan *plan, uint32_t index, uint32_t currentLevel)
+{
+    assert(plan->propagate);
+    uint64_t offset = 1 << (plan->level - currentLevel - 1);
+    for (int i = 0; i<DIM; ++i) {
+        if (index & (1 << i)) {
+            plan->pos[i] += offset;
+        }
+    }
+}
+
+RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, RefinePlan *plan2,
+                                       uint32_t currentLevel)
 {
     if (plan1->level != plan2->level) {
         return NULL;
     }
 
     RefinePlan *merged = MALLOC(RefinePlan);
-	merged->level = plan1->level;
-    merged->propagate = true;
-    uint64_t offset1 = 1 << (plan1->level - currentLevel - 1);
-    uint64_t offset2 = 1 << (plan2->level - currentLevel - 1);
-    int diffBit = -1;
-    int mismatch = 0;
+    merged->level = plan1->level;
+    merged->propagate = false;
+    int diffCoord = -1;
     for (int i = 0; i<DIM; ++i) {
-        uint64_t posoff1 = index1 & (1 << i) ? offset1 : 0;
-        uint64_t posoff2 = index2 & (1 << i) ? offset2 : 0;
-        if ((index1 ^ index2) & (1 << i)) {
-            if (diffBit != -1) {
-                free(merged);
-                return NULL;
-            } else {
-                diffBit = i;
-            }
-        }
-        if (plan1->pos[i] + posoff1 == plan2->pos[i] + posoff2
-            && plan1->size[i] == plan2->size[i]) {
-            merged->pos[i] = plan1->pos[i] + posoff1;
+        if (plan1->pos[i] == plan2->pos[i] && plan1->size[i] == plan2->size[i]) {
+            merged->pos[i] = plan1->pos[i];
             merged->size[i] = plan1->size[i];
-        } else if (mismatch > 0) {
+        } else if (diffCoord != -1) {
             free(merged);
             return NULL;
-        } else if (plan1->pos[i] + posoff1 + plan1->size[i] == plan2->pos[i] + posoff2) {
-            merged->pos[i] = plan1->pos[i] + posoff1;
+        } else if (plan1->pos[i] + plan1->size[i] == plan2->pos[i]) {
+            merged->pos[i] = plan1->pos[i];
             merged->size[i] = plan1->size[i] + plan2->size[i];
-            mismatch++;
-        } else if (plan2->pos[i] + posoff2 + plan2->size[i] == plan1->pos[i] + posoff1) {
-            merged->pos[i] = plan2->pos[i] + posoff2;
+            diffCoord = i;
+        } else if (plan2->pos[i] + plan2->size[i] == plan1->pos[i]) {
+            merged->pos[i] = plan2->pos[i];
             merged->size[i] = plan1->size[i] + plan2->size[i];
-            mismatch++;
+            diffCoord = i;
         } else {
             free(merged);
             return NULL;
         }
+        if (merged->pos[i] + merged->size[i] == 1 << (merged->level - currentLevel)) {
+            merged->propagate = true;
+        }
 	}
+    assert(diffCoord != -1);
 	Buffer *nodesBuf = Buffer_create(sizeof(Node*), sizeof(Node*), merged->size);
 	uint64_t pos1[DIM], pos2[DIM], pos3[DIM];
 	for (int i = 0; i<DIM; ++i) {
 		pos1[i] = 0;
 		pos2[i] = 0;
 		pos3[i] = 0;
-		if (i == diffBit) {
-			if (index1 & (1 << i)) {
+        if (i == diffCoord) {
+            if (plan1->pos[i] > plan2->pos[i]) {
 				pos1[i] = merged->size[i];
 			} else {
 				pos2[i] = merged->size[i];
