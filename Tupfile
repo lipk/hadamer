@@ -1,13 +1,14 @@
 TARGET=2d
 
 CFLAGS= -g -std=c11 -Isrc -Ibuild/gen -Itest/$(TARGET)/
+CC=gcc
 
-!cc = |> clang $(CFLAGS) -c %f -o %o |>
-!lucgen = |> lucgen/lucgen.lua %f -o %o -l test/$(TARGET)/config.lua |>
+!cc = |> $(CC) $(CFLAGS) -c %f -o %o |>
+!lucgen = |> lucgen/lucgen.lua %f -o %o -l src/genutils.lua -l test/$(TARGET)/config.lua |>
 
 : foreach src/*.luc |> !lucgen |> build/gen/%B.c
 : foreach src/*.luh |> !lucgen |> build/gen/%B.h
 : foreach src/*.c | build/gen/*.h |> !cc |> build/obj/%B.o
 : foreach build/gen/*.c | build/gen/*.h |> !cc |> build/obj/%B.o
 : foreach test/$(TARGET)/*.c | build/gen/*.h |> !cc |> build/obj/%B.o
-: build/obj/*.o |> clang %f -o %o |> build/$(TARGET)
+: build/obj/*.o |> $(CC) %f -o %o |> build/$(TARGET)

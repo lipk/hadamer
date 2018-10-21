@@ -17,25 +17,13 @@ end
 function genUpsampler(name, datatype)
 	emit('static void ' .. upname(name) .. '(Array *x, Array *y[TREECH])\n{\n')
     ind()
-	for i=1,args.dim do
-		j = args.dim-i+1
-        emiti('for (int a'..j..' = 0; a'..j..' < 2; ++a'..j..') {\n')
-        ind()
-	end
-	for i=1,args.dim do
-		j = args.dim-i+1
-        emiti('for (int b'..j..' = 0; b'..j..' < BLOCKSIZE/2; ++b'..j..') {\n')
-        ind()
-	end
+    emitin({args.dim, 1}, 'for (int a$n=0; a$n<2; ++a$n) {\n', indp)
+    emitin({args.dim, 1}, 'for (int b$n=0; b$n<BLOCKSIZE/2; ++b$n) {\n', indp)
     emiti('Array *arr = y[a1')
-	for i=2,args.dim do
-		emit(' | (a'..i..' << '..(i-1)..')')
-	end
+    emitn({2, args.dim}, ' | (a$n << ($n-1))')
 	emit('];\n')
     emiti(name..'(GET('..datatype..', x');
-	for i=1,args.dim do
-		emit(', b'..i..'+BLOCKSIZE/2*a'..i)
-	end
+    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n')
 	emit(')');
     ind()
 	for i=0,math.floor(2^args.dim)-1 do
@@ -52,29 +40,17 @@ function genUpsampler(name, datatype)
 	end
 	emit(');\n')
     unind()
-	for i=1,args.dim*2+1 do
-        unind()
-        emiti('}\n')
-	end
+    emitin(args.dim*2+1, '}\n', unind)
+    emit('\n')
 end
 
 function genDownsampler(name, datatype)
 	emit('static void ' .. downname(name) .. '(Array *x[TREECH], Array *y)\n{\n')
     ind()
-	for i=1,args.dim do
-		j = args.dim-i+1
-        emiti('for (int a'..j..' = 0; a'..j..' < 2; ++a'..j..') {\n')
-        ind()
-	end
-	for i=1,args.dim do
-		j = args.dim-i+1
-        emiti('for (int b'..j..' = 0; b'..j..' < BLOCKSIZE/2; ++b'..j..') {\n')
-        ind()
-	end
+    emitin({args.dim, 1}, 'for (int a$n=0; a$n<2; ++a$n) {\n', indp)
+    emitin({args.dim, 1}, 'for (int b$n=0; b$n<2; ++b$n) {\n', indp)
     emiti('Array *arr = x[a1')
-	for i=2,args.dim do
-		emit(' | (a'..i..' << '..(i-1)..')')
-	end
+    emitn({2, args.dim}, ' | (a$n << ($n-1))')
 	emit('];\n')
     emiti(name..'(')
     ind()
@@ -91,15 +67,10 @@ function genDownsampler(name, datatype)
         emiti('')
 	end
 	emit('GET('..datatype..', y')
-	for i=1,args.dim do
-		emit(', b'..i..'+BLOCKSIZE/2*a'..i)
-	end
+    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n')
 	emit('));\n')
     unind()
-	for i=1,args.dim*2+1 do
-        unind()
-        emiti('}\n')
-	end
+    emitin(args.dim*2+1, '}\n', unind)
 end
 
 ups = {}
@@ -122,10 +93,11 @@ static inline bool Node_isLeaf(Node *node)
     return node->children[0] == NULL;
 }
 
-static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[GRIDNUM], const uint64_t pos[DIM])
+static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[GRIDNUM], const uint64_t pos[DIM], uint32_t index)
 {
 	Node *leaf = MALLOC(Node);
 	leaf->parent = parent;
+    leaf->index = index;
 	if (parent == NULL) {
 		leaf->level = 0;
 	} else {
@@ -138,6 +110,11 @@ static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[GRIDNUM],
 	for (int j = 0; j<TREECH; ++j) {
 		leaf->children[j] = NULL;
 	}
+    uint64_t adjsize[DIM];
+    for (int i = 0; i<DIM; ++i) {
+        adjsize[i] = 3;
+    }
+    leaf->adjacent = Array_createWithBuffer(sizeof(Node*), sizeof(Node*), adjsize);
 	return leaf;
 }
 
@@ -146,6 +123,7 @@ static void Node_destroy(Node* node) {
 	for (int i = 0; i<GRIDNUM; ++i) {
 		DESTROY(Array, node->data[i]);
 	}
+    DESTROY(Array, node->adjacent);
 	free(node);
 }
 
@@ -156,7 +134,7 @@ static void Tree_splitNode(Tree *tree, Node* node, Buffer *buffers[GRIDNUM], uin
         for (int j = 0; j<DIM; ++j) {
             leafPos[j] = pos[j] + (i & (1 << j) ? BLOCKSIZE : 0);
         }
-        node->children[i] = Tree_createLeaf(tree, node, buffers, leafPos);
+        node->children[i] = Tree_createLeaf(tree, node, buffers, leafPos, i);
 	}
 	for (int i = 0; i<GRIDNUM; ++i) {
 		Array *newdata[TREECH];
@@ -195,22 +173,73 @@ Tree *Tree_create()
 {
 	Tree *tree = MALLOC(Tree);
 	for (int i = 0; i<DIM; ++i) {
-		tree->blocksize[i] = BLOCKSIZE;
+        tree->blocksize[i] = BLOCKSIZE + 2;
 	}
 
 	@
-	i = 0
+	local i = 0
 	for _,grid in pairs(args.grids) do
-		emit('tree->gridinfo[' .. i .. '].itemsize = sizeof(' .. grid.datatype .. ');\n')
-		emit('tree->gridinfo[' .. i .. '].alignment = sizeof(' .. grid.datatype .. ');\n')
-		emit('tree->gridinfo[' .. i .. '].upsample = &' .. upname(grid.upsample) .. ';\n')
-		emit('tree->gridinfo[' .. i .. '].downsample = &' .. downname(grid.downsample) .. ';\n')
+        emit{'tree->gridinfo[$i].itemsize = sizeof($gd);\n',
+             i = i, gd = grid.datatype}
+        emit{'tree->gridinfo[$i].alignment = sizeof($gd);\n',
+             i = i, gd = grid.datatype}
+        emit{'tree->gridinfo[$i].upsample = &$name;\n',
+             i = i, name = upname(grid.upsample)}
+        emit{'tree->gridinfo[$i].downsample = &$name;\n',
+             i = i, name = downname(grid.downsample)}
+        i=i+1
 	end
 	@
     Buffer **buffers = createBuffers(tree->blocksize);
-    tree->root = Tree_createLeaf(tree, NULL, buffers, pos0);
+    tree->root = Tree_createLeaf(tree, NULL, buffers, pos0, 0);
     free(buffers);
     return tree;
+}
+
+static void Node_updateAdjacency(Node *node)
+{
+    @
+    emitin(args.dim, 'for (int x$n=0; x$n<3; ++x$n) {\n', indp)
+    emiti('*GET(Node*, node->adjacent')
+    emitn(args.dim, ', x$n')
+    emit(') = NULL;\n')
+    emitin(args.dim, '}\n', unind)
+    emiti('*GET(Node*, node->adjacent')
+    emitn(args.dim, ', 1')
+    emit(') = node;\n')
+    @
+    if (node->parent != NULL) {
+        uint32_t off[DIM];
+        for (int i = 0; i<DIM; ++i) {
+            off[i] = node->index & (1 << i) ? 1 : 0;
+        }
+        
+        uint32_t t[] = {0, 1, 1, 1, 1, 2};
+        @
+        emitin(args.dim, 'for (int x$n=0; x$n<3; ++x$n) {\n', indp)
+        emiti('Node** adj = GET(Node*, node->adjacent')
+        emitn(args.dim, ', x$n')
+        emit(');\n')
+        emiti('*adj = *GET(Node*, node->parent->adjacent')
+        emitn(args.dim, ', t[x$n + 3*off[$n-1]]')
+        emit(');\n')
+        emiti('if (*adj != NULL && !Node_isLeaf(*adj)) {\n')
+        ind()
+        emiti('uint32_t flip = (1-(x1 % 2)) | ')
+        emitn({2, args.dim}, '((1-(x$n % 2)) << ($n-1))')
+        emit(';\n')
+        emiti('*adj = (*adj)->children[node->index ^ flip];\n')
+        unind()
+        emiti('}\n')
+        emitin(args.dim, '}\n', unind)
+        @
+    }
+    
+    if (!Node_isLeaf(node)) {
+        for (int i = 0; i<TREECH; ++i) {
+            Node_updateAdjacency(node->children[i]);
+        }
+    }
 }
 
 static void Node_calculateRefinePlan(Node *node)
@@ -246,14 +275,8 @@ static void Node_calculateRefinePlan(Node *node)
         do {
             for (uint32_t pi = 0; pi<node->refplan.size; ++pi) {
                 RefinePlan *plan1 = (RefinePlan*) node->refplan.data[pi];
-                if (!plan1->propagate) {
-                    continue;
-                }
                 for (uint32_t pj = 0; pj<node->refplan.size; ++pj) {
                     RefinePlan *plan2 = (RefinePlan*) node->refplan.data[pj];
-                    if (!plan2->propagate) {
-                        continue;
-                    }
                     RefinePlan *merged = RefinePlan_mergeIfPossible(
                         plan1, plan2, node->level);
                     if (merged != NULL) {
@@ -280,16 +303,17 @@ static void Tree_executeRefinePlan(Tree *tree, RefinePlan *plan)
 {
     uint64_t size[DIM];
     for (int j = 0; j<DIM; ++j) {
-        size[j] = plan->size[j] * BLOCKSIZE * 2;
+        size[j] = plan->size[j] * BLOCKSIZE * 2 + 2;
     }
     Buffer **buffers = createBuffers(size);
     uint64_t index[DIM];
     uint64_t pos[DIM];
     @
     for i=0,args.dim-1 do
-        local it = 'index['..i..']'
-        local pos = 'pos['..i..']';
-        emiti('for ('..it..' = 0, '..pos..' = 0; '..it..' < plan->nodes->size['..i..']; ++'..it..', '..pos..'+=BLOCKSIZE*2) {\n')
+        emiti{'for ($it = 0, $pos = 0; $it < plan->nodes->size[$i]; ++$it, $pos+=BLOCKSIZE*2) {\n',
+            it = 'index['..i..']',
+            pos = 'pos['..i..']',
+            i = i}
         ind()
     end
     emiti('Tree_splitNode(tree, *GET(Node*, plan->nodes')
@@ -340,4 +364,5 @@ void Tree_restructure(Tree *tree)
 {
     Node_recursiveCalculateRefinePlan(tree->root);
     Tree_recursiveRestructure(tree, tree->root);
+    Node_updateAdjacency(tree->root);
 }

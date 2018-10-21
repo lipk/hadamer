@@ -15,7 +15,9 @@ typedef struct Node
 	Array *data[GRIDNUM];
 	int action;
 	uint32_t level;
+    uint32_t index;
     Vector refplan;
+    Array *adjacent;
 } Node;
 
 typedef struct GridInfo

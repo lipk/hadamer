@@ -35,6 +35,25 @@ void test_basic() {
 	tree->root->action = REFINE;
 	Tree_restructure(tree);
 	assert(tree->root->children[0] != NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 0, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 1, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 2, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 0, 1) == NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 1, 1) == tree->root->children[0]);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 2, 1) == tree->root->children[1]);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 0, 2) == NULL);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 1, 2) == tree->root->children[2]);
+	assert(*GET(Node*, tree->root->children[0]->adjacent, 2, 2) == tree->root->children[3]);
+	assert(tree->root->children[1] != NULL);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 0, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 1, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 2, 0) == NULL);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 0, 1) == tree->root->children[0]);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 1, 1) == tree->root->children[1]);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 2, 1) == NULL);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 0, 2) == tree->root->children[2]);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 1, 2) == tree->root->children[3]);
+	assert(*GET(Node*, tree->root->children[1]->adjacent, 2, 2) == NULL);
 	for (int i = 0; i<TREECH; ++i) {
 		assert(tree->root->children[i]->data[0] != NULL);
 		tree->root->children[i]->action = DEREFINE;
