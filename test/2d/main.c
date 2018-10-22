@@ -31,9 +31,11 @@ void test_sampling() {
 
 void test_basic() {
 	Tree *tree = Tree_create();
+	Tree_export(tree, "basic1");
 	assert(tree->root->data != NULL);
 	tree->root->action = REFINE;
 	Tree_restructure(tree);
+	Tree_export(tree, "basic2");
 	assert(tree->root->children[0] != NULL);
 	assert(*GET(Node*, tree->root->children[0]->adjacent, 0, 0) == NULL);
 	assert(*GET(Node*, tree->root->children[0]->adjacent, 1, 0) == NULL);
@@ -59,6 +61,7 @@ void test_basic() {
 		tree->root->children[i]->action = DEREFINE;
 	}
 	Tree_restructure(tree);
+	Tree_export(tree, "basic3");
 	assert(tree->root->children[0] == NULL);
 }
 
@@ -89,7 +92,6 @@ void init_refplan2(Buffer *buf, RefinePlan *plan) {
 void test_merge_plan_simple() {
 	uint64_t bufsize[2] = {2, 1};
 	Buffer *buf = Buffer_create(8, 8, bufsize);
-
 	{
 		RefinePlan plan1, plan2;
 		init_refplan1(buf, &plan1);
@@ -201,9 +203,21 @@ void test_merge_plan_simple() {
 	}
 }
 
+void test_tall_tree()
+{
+	Tree *tree = Tree_create();
+	tree->root->action = REFINE;
+	Tree_restructure(tree);
+	tree->root->children[0]->action = REFINE;
+	tree->root->children[1]->action = REFINE;
+	tree->root->children[2]->action = REFINE;
+	Tree_restructure(tree);
+	tree->root->children[2]->children[1]->action = REFINE;
+	Tree_restructure(tree);
+	Tree_export(tree, "tall_tree");
+}
+
 int main() {
-	test_basic();
-	test_sampling();
-	test_merge_plan_simple();
+	test_tall_tree();
 	return 0;
 }

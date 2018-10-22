@@ -18,6 +18,7 @@ typedef struct Node
     uint32_t index;
     Vector refplan;
     Array *adjacent;
+    bool sync;
 } Node;
 
 typedef struct GridInfo
@@ -37,3 +38,5 @@ typedef struct Tree
 
 Tree *Tree_create();
 void Tree_restructure(Tree* tree);
+void Tree_synchronize(Tree* tree);
+void Tree_export(Tree* tree, const char* file);

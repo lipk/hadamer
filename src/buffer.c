@@ -39,6 +39,7 @@ Array* Array_create(Buffer *buffer,	const uint64_t size[], const uint64_t pos[])
 	for (int i = 0; i<DIM; i += 1) {
 		array->size[i] = size[i];
 		array->pos[i] = pos[i];
+		array->offset += buffer->stride[i]*pos[i];
 	}
 	return array;
 }

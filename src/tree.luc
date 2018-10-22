@@ -259,7 +259,6 @@ static void Node_calculateRefinePlan(Node *node)
         plan->propagate = true;
         Vector_push(&node->refplan, plan);
     } else {
-        bool changed = false;
         for (uint32_t i = 0; i<TREECH; ++i) {
             for (uint32_t j = 0; j<node->children[i]->refplan.size;) {
                 RefinePlan* plan = (RefinePlan*) node->children[i]->refplan.data[j];
@@ -272,10 +271,15 @@ static void Node_calculateRefinePlan(Node *node)
                 }
             }
         }
+        bool changed;
         do {
+            changed = false;
             for (uint32_t pi = 0; pi<node->refplan.size; ++pi) {
                 RefinePlan *plan1 = (RefinePlan*) node->refplan.data[pi];
                 for (uint32_t pj = 0; pj<node->refplan.size; ++pj) {
+                    if (pi == pj) {
+                        continue;
+                    }
                     RefinePlan *plan2 = (RefinePlan*) node->refplan.data[pj];
                     RefinePlan *merged = RefinePlan_mergeIfPossible(
                         plan1, plan2, node->level);
@@ -365,4 +369,41 @@ void Tree_restructure(Tree *tree)
     Node_recursiveCalculateRefinePlan(tree->root);
     Tree_recursiveRestructure(tree, tree->root);
     Node_updateAdjacency(tree->root);
+}
+
+void Tree_synchronize(Tree *tree)
+{
+    
+}
+
+static void Tree_exportNode(Tree* tree, Node* node, uint32_t pos[2*DIM], FILE *handle)
+{
+    if (Node_isLeaf(node)) {
+        fprintf(handle, "%u\n", node->level);
+        for (int i = 0; i<2*DIM; i+=2) {
+            fprintf(handle, "%f ", (double)pos[i]/pos[i+1]);
+        }
+        fprintf(handle, "\n%p\n\n", node->data[0]->buffer);
+    } else {
+        fprintf(handle, "\n");
+        for (int i = 0; i<TREECH; ++i) {
+            uint32_t chpos[2*DIM];
+            for (int j = 0; j<2*DIM; j+=2) {
+                chpos[j] = pos[j]*2;
+                chpos[j+1] = pos[j+1]*2;
+                if (i & (1 << (j/2))) {
+                    chpos[j] += 1;
+                }
+            }
+            Tree_exportNode(tree, node->children[i], chpos, handle);
+        }
+    }
+}
+
+void Tree_export(Tree* tree, const char* file)
+{
+    FILE* handle = fopen(file, "w");
+    uint32_t pos[2*DIM] = {@emitn(args.dim, '0, 1, ')@};
+    Tree_exportNode(tree, tree->root, pos, handle);
+    fclose(handle);
 }

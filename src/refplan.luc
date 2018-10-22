@@ -1,5 +1,6 @@
 #include <refplan.h>
 #include <util.h>
+#include <stdio.h>
 
 typedef struct Node Node;
 
@@ -58,9 +59,9 @@ RefinePlan *RefinePlan_mergeIfPossible(RefinePlan *plan1, RefinePlan *plan2,
 		pos3[i] = 0;
         if (i == diffCoord) {
             if (plan1->pos[i] > plan2->pos[i]) {
-				pos1[i] = merged->size[i];
+				pos1[i] = plan2->size[i];
 			} else {
-				pos2[i] = merged->size[i];
+				pos2[i] = plan1->size[i];
 			}
 		}
 	}
