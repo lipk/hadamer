@@ -218,6 +218,9 @@ void test_tall_tree()
 }
 
 int main() {
+	test_basic();
+	test_sampling();
+	test_merge_plan_simple();
 	test_tall_tree();
 	return 0;
 }
