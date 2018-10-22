@@ -371,6 +371,52 @@ void Tree_restructure(Tree *tree)
     Node_updateAdjacency(tree->root);
 }
 
+bool Node_isInSameBuffer(Node* node1, Node* node2)
+{
+    return node1->data[0]->buffer = node2->data[0]->buffer;
+}
+
+void Tree_exchangeHalo(Tree *tree, Node* node1, Node* node2, uint32_t srcstart[DIM],
+                       uint32_t srcend[DIM], uint32_t dststart[DIM])
+{
+    if (node1 == NULL || node2 == NULL) {
+        // TODO: boundary conditions
+        return;
+    }
+	if (Node_isInSameBuffer(node1, node2)) {
+        return;
+    }
+    @
+    emitin(args.dim, 'for (uint32_t s$n = srcstart[$n-1], d$n = dststart[$n-1]; s$n < srcend[$n-1]; ++s$n, ++d$n) {\n', indp)
+    local i = 0
+    for _,grid in pairs(args.grids) do
+        print(i, grid)
+        emiti{'*GET($t, node1->data[$i]', t=grid.datatype, i=i}
+        emitn(args.dim, ', d$n')
+        emit{') = *GET($t, node2->data[$i]', t=grid.datatype, i=i}
+        emitn(args.dim, ', s$n')
+        emit(');\n')
+        i = i+1
+    end
+    emitin(args.dim, '}\n', unind)
+    @
+}
+
+void Tree_synchronizeNode(Tree *tree, Node *node)
+{
+    @
+    emitin(args.dim, 'for (uint32_t x$n = 0; x$n<3; ++x$n) {\n', indp)
+    emiti('uint32_t srcstart[DIM], srcend[DIM], dststart[DIM];\n')
+    emitin(args.dim, 'srcstart[$n-1] = x$n == 0 ? BLOCKSIZE-1 : 0;\n')
+    emitin(args.dim, 'srcend[$n-1] = x$n == 2 ? 1 : BLOCKSIZE;\n')
+    emitin(args.dim, 'dststart[$n-1] = x$n == 0 ? 0 : BLOCKSIZE-1;\n')
+    emiti('Tree_exchangeHalo(tree, node, *GET(Node*, node->adjacent')
+    emitn(args.dim, ', x$n')
+    emit('), srcstart, srcend, dststart);\n')
+    emitin(args.dim, '}\n', unind)
+    @
+}
+
 void Tree_synchronize(Tree *tree)
 {
     

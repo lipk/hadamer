@@ -7,5 +7,10 @@ args = {
 			upsample = 'upsample',
 			downsample = 'downsample',
 		},
+        velocity = {
+			datatype = 'double',
+			upsample = 'upsample',
+			downsample = 'downsample',
+		},
 	},
 }
