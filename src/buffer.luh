@@ -3,23 +3,23 @@
 #include <config.h>
 
 typedef struct Buffer {
-	void *data;
-	uint32_t itemsize;
-	uint64_t rawsize;
-	uint64_t size[DIM];
-	uint64_t stride[DIM];
-	uint32_t align;
-	uint32_t refcount;
+        void *data;
+        uint32_t itemsize;
+        uint64_t rawsize;
+        uint64_t size[DIM];
+        uint64_t stride[DIM];
+        uint32_t align;
+        uint32_t refcount;
 } Buffer;
 
 Buffer* Buffer_create(uint32_t align, uint32_t itemsize, const uint64_t size[DIM]);
 void Buffer_destroy(Buffer *buffer);
 
 typedef struct Array {
-	Buffer *buffer;
-	uint64_t size[DIM];
-	uint64_t pos[DIM];
-	uint64_t offset;
+        Buffer *buffer;
+        uint64_t size[DIM];
+        uint64_t pos[DIM];
+        uint64_t offset;
 } Array;
 
 Array* Array_create(Buffer *buffer, const uint64_t size[DIM], const uint64_t pos[DIM]);
@@ -27,7 +27,7 @@ Array* Array_createWithBuffer(uint32_t align, uint32_t itemsize, const uint64_t 
 void Array_destroy(Array *array);
 
 #define GET(type, array@for i=1,args.dim do emit(', x' .. i) end@)\
-	(&((type*) array->buffer->data)[array->offset+(x1)@
-		for i=2,args.dim do emit('+array->buffer->stride['..(i-1)..']*(x'..i..')') end@])
+        (&((type*) array->buffer->data)[array->offset+(x1)@
+                for i=2,args.dim do emit('+array->buffer->stride['..(i-1)..']*(x'..i..')') end@])
 #define GETA(type, array, index) \
     GET(type, array@for i=0,args.dim-1 do emit(', index['..i..']') end@)

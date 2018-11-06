@@ -8,35 +8,47 @@
 #define REFINE 1
 #define DEREFINE 2
 
+typedef struct ArrayPair
+{
+    Array *source, *target;
+} ArrayPair;
+
 typedef struct Node
 {
-	struct Node *children[TREECH];
-	struct Node *parent;
-	Array *data[GRIDNUM];
-	int action;
-	uint32_t level;
+    struct Node *children[TREECH];
+    struct Node *parent;
+    ArrayPair data[GRIDNUM];
+    int action;
+    uint32_t level;
     uint32_t index;
     Vector refplan;
     Array *adjacent;
-    bool sync;
+    bool sync, propagate;
 } Node;
 
 typedef struct GridInfo
 {
-	uint64_t itemsize;
-	uint64_t alignment;
-	void (*upsample)(Array *x, Array *y[TREECH]);
-	void (*downsample)(Array *x[TREECH], Array *y);
+    uint64_t itemsize;
+    uint64_t alignment;
+    void (*upsample)(Array *x, Array *y[TREECH]);
+    void (*downsample)(Array *x[TREECH], Array *y);
 } GridInfo;
 
 typedef struct Tree
 {
-	Node *root;
-	GridInfo gridinfo[GRIDNUM];
-	uint64_t blocksize[DIM];
+    Node *root;
+    GridInfo gridinfo[GRIDNUM];
+    uint64_t blocksize[DIM];
 } Tree;
 
 Tree *Tree_create();
 void Tree_restructure(Tree* tree);
 void Tree_synchronize(Tree* tree);
 void Tree_export(Tree* tree, const char* file);
+
+@
+for name,grid in pairs(args.grids) do
+    local func = 'Tree_'..name..'_applyKernel'
+    emit{'void $func(Tree *tree, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]));\n', func=func}
+end
+@

@@ -7,84 +7,137 @@
 const uint64_t pos0[DIM] = {@for i=1,args.dim do emit('0,') end@};
 
 @
-function upname(base)
-	return 'upsamplerFunction_' .. base
+function blockUpsamplerName(base)
+    return 'upsampleBlock_' .. base
 end
-function downname(base)
-	return 'downsamplerFunction_' .. base
+function blockDownsamplerName(base)
+    return 'downsampleBlock_' .. base
+end
+function rangeUpsamplerName(base)
+    return 'upsampleRange_' .. base
 end
 
-function genUpsampler(name, datatype)
-	emit('static void ' .. upname(name) .. '(Array *x, Array *y[TREECH])\n{\n')
+function genBlockUpsampler(name, datatype)
+    emit('static void ' .. blockUpsamplerName(name) .. '(Array *x, Array *y[TREECH])\n{\n')
     ind()
     emitin({args.dim, 1}, 'for (int a$n=0; a$n<2; ++a$n) {\n', indp)
     emitin({args.dim, 1}, 'for (int b$n=0; b$n<BLOCKSIZE/2; ++b$n) {\n', indp)
     emiti('Array *arr = y[a1')
     emitn({2, args.dim}, ' | (a$n << ($n-1))')
-	emit('];\n')
+    emit('];\n')
     emiti(name..'(GET('..datatype..', x');
-    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n')
-	emit(')');
+    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n+1')
+    emit(')');
     ind()
-	for i=0,math.floor(2^args.dim)-1 do
+    for i=0,math.floor(2^args.dim)-1 do
         emit(',\n')
         emiti('GET('..datatype..', arr');
-		for j=1,args.dim do
-			add = ''
-			if i & (1 << (j-1)) ~= 0 then
-				add = '+1'
-			end
-			emit(', 2*b'..j..add)
-		end
-		emit(')')
-	end
-	emit(');\n')
+        for j=1,args.dim do
+            add = ''
+            if i & (1 << (j-1)) ~= 0 then
+                add = '+2'
+            else
+                add = '+1'
+            end
+            emit(', 2*b'..j..add)
+        end
+        emit(')')
+    end
+    emit(');\n')
     unind()
     emitin(args.dim*2+1, '}\n', unind)
     emit('\n')
 end
 
-function genDownsampler(name, datatype)
-	emit('static void ' .. downname(name) .. '(Array *x[TREECH], Array *y)\n{\n')
+function genRangeUpsampler(name, datatype)
+    emiti{'static void $name(Array *src, Array *dst, int32_t srcfrom[DIM], int32_t srcto[DIM], int32_t dstfrom[DIM]) {\n',
+          name=rangeUpsamplerName(name)}
+    ind()
+    emitin(args.dim, 'for (int32_t s$n = srcfrom[$n-1], d$n = dstfrom[$n-1]; s$n < srcfrom[$n-1]; ++s$n, d$n += 2) {\n', indp)
+    emiti('double dummy;\n')
+    emiti{'$func(GET($type, src', func=name, type=datatype}
+    emitn(args.dim, ', s$n')
+    emit(')')
+    ind()
+    for i=0,math.floor(2^args.dim)-1 do
+        emit(',\n')
+        local params ='';
+        for j=1,args.dim do
+            add = ''
+            comma = ''
+            if i & (1 << (j-1)) ~= 0 then
+                add = '+1'
+            end
+            if j > 1 then
+                comma = ', '
+            end
+            params = params..comma..'d'..j..add
+        end
+        emiti{'inRange($params) ? GET($type, dst, $params) : &dummy', type=datatype, params=params}
+    end
+    emit(');\n')
+    unind()
+    emitin(args.dim, '}\n', unind)
+    unind()
+    emiti('}\n\n')
+end
+
+function genBlockDownsampler(name, datatype)
+    emit('static void ' .. blockDownsamplerName(name) .. '(Array *x[TREECH], Array *y)\n{\n')
     ind()
     emitin({args.dim, 1}, 'for (int a$n=0; a$n<2; ++a$n) {\n', indp)
-    emitin({args.dim, 1}, 'for (int b$n=0; b$n<2; ++b$n) {\n', indp)
+    emitin({args.dim, 1}, 'for (int b$n=0; b$n<BLOCKSIZE/2; ++b$n) {\n', indp)
     emiti('Array *arr = x[a1')
     emitn({2, args.dim}, ' | (a$n << ($n-1))')
-	emit('];\n')
+    emit('];\n')
     emiti(name..'(')
     ind()
-	for i=0,math.floor(2^args.dim)-1 do
-		emit('GET('..datatype..', arr')
-		for j=1,args.dim do
-			add = ''
-			if i & (1 << (j-1)) ~= 0 then
-				add = '+1'
-			end
-			emit(', 2*b'..j..add)
-		end
+    for i=0,math.floor(2^args.dim)-1 do
+        emit('GET('..datatype..', arr')
+        for j=1,args.dim do
+            add = ''
+            if i & (1 << (j-1)) ~= 0 then
+                add = '+2'
+            else
+                add = '+1'
+            end
+            emit(', 2*b'..j..add)
+        end
         emit('),\n')
         emiti('')
-	end
-	emit('GET('..datatype..', y')
-    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n')
-	emit('));\n')
+    end
+    emit('GET('..datatype..', y')
+    emitn(args.dim, ', b$n+BLOCKSIZE/2*a$n+1')
+    emit('));\n')
     unind()
     emitin(args.dim*2+1, '}\n', unind)
 end
+
+emiti('static inline bool inRange(int32_t x1')
+emitn({2, args.dim}, ', int32_t x$n')
+emit(')\n{\n')
+ind()
+emiti('return (x1 == 0 || x1 == BLOCKSIZE+1)\n');
+ind()
+emitin({2, args.dim}, '&& (x$n == 0 || x$n == BLOCKSIZE+1)\n')
+emiti(';\n')
+unind();
+unind();
+emit('}\n')
 
 ups = {}
 downs = {}
 
 for _,grid in pairs(args.grids) do
-	if ups[grid.upsample] == nil then
-		genUpsampler(grid.upsample, grid.datatype)
-		ups[grid.upsample] = true
-	end
-	if (downs[grid.downsample]) == nil then
-		genDownsampler(grid.downsample, grid.datatype)
-		downs[grid.downsample] = true
-	end
+    if ups[grid.upsample] == nil then
+        genBlockUpsampler(grid.upsample, grid.datatype)
+        genRangeUpsampler(grid.upsample, grid.datatype)
+        ups[grid.upsample] = true
+    end
+    if (downs[grid.downsample]) == nil then
+        genBlockDownsampler(grid.downsample, grid.datatype)
+        downs[grid.downsample] = true
+    end
 end
 @
 
@@ -93,77 +146,81 @@ static inline bool Node_isLeaf(Node *node)
     return node->children[0] == NULL;
 }
 
-static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[GRIDNUM], const uint64_t pos[DIM], uint32_t index)
+static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[2*GRIDNUM], const uint64_t pos[DIM], uint32_t index)
 {
-	Node *leaf = MALLOC(Node);
-	leaf->parent = parent;
+    Node *leaf = MALLOC(Node);
+    leaf->parent = parent;
     leaf->index = index;
-	if (parent == NULL) {
-		leaf->level = 0;
-	} else {
-		leaf->level = parent->level+1;
-	}
-	leaf->action = NOTHING;
+    leaf->sync = false;
+    leaf->propagate = false;
+    if (parent == NULL) {
+        leaf->level = 0;
+    } else {
+        leaf->level = parent->level+1;
+    }
+    leaf->action = NOTHING;
     for (int i = 0; i<GRIDNUM; ++i) {
-        leaf->data[i] = Array_create(buffers[i], tree->blocksize, pos);
-	}
-	for (int j = 0; j<TREECH; ++j) {
-		leaf->children[j] = NULL;
-	}
+        leaf->data[i].source = Array_create(buffers[2*i], tree->blocksize, pos);
+        leaf->data[i].target = Array_create(buffers[2*i+1], tree->blocksize, pos);
+    }
+    for (int j = 0; j<TREECH; ++j) {
+        leaf->children[j] = NULL;
+    }
     uint64_t adjsize[DIM];
     for (int i = 0; i<DIM; ++i) {
         adjsize[i] = 3;
     }
     leaf->adjacent = Array_createWithBuffer(sizeof(Node*), sizeof(Node*), adjsize);
-	return leaf;
+    return leaf;
 }
 
 static void Node_destroy(Node* node) {
-	assert(Node_isLeaf(node));
-	for (int i = 0; i<GRIDNUM; ++i) {
-		DESTROY(Array, node->data[i]);
-	}
+    assert(Node_isLeaf(node));
+    for (int i = 0; i<GRIDNUM; ++i) {
+        DESTROY(Array, node->data[i].source);
+        DESTROY(Array, node->data[i].target);
+    }
     DESTROY(Array, node->adjacent);
-	free(node);
+    free(node);
 }
 
-static void Tree_splitNode(Tree *tree, Node* node, Buffer *buffers[GRIDNUM], uint64_t pos[DIM]) {
-	assert(Node_isLeaf(node));
-	for (int i = 0; i<TREECH; ++i) {
+static void Tree_splitNode(Tree *tree, Node* node, Buffer *buffers[2*GRIDNUM], uint64_t pos[DIM]) {
+    assert(Node_isLeaf(node));
+    for (int i = 0; i<TREECH; ++i) {
         uint64_t leafPos[DIM];
         for (int j = 0; j<DIM; ++j) {
             leafPos[j] = pos[j] + (i & (1 << j) ? BLOCKSIZE : 0);
         }
         node->children[i] = Tree_createLeaf(tree, node, buffers, leafPos, i);
-	}
-	for (int i = 0; i<GRIDNUM; ++i) {
-		Array *newdata[TREECH];
-		for (int j = 0; j<TREECH; ++j) {
-			newdata[j] = node->children[j]->data[i];
-		}
-		tree->gridinfo[i].upsample(node->data[i], newdata);
-	}
+    }
+    for (int i = 0; i<GRIDNUM; ++i) {
+        Array *newdata[TREECH];
+        for (int j = 0; j<TREECH; ++j) {
+            newdata[j] = node->children[j]->data[i].source;
+        }
+        tree->gridinfo[i].upsample(node->data[i].source, newdata);
+    }
 }
 
 static void Tree_mergeNode(Tree *tree, Node* node) {
-	assert(!Node_isLeaf(node));
-	for (int i = 0; i<GRIDNUM; ++i) {
-		assert(Node_isLeaf(node->children[i]));
-		Array *olddata[TREECH];
-		for (int j = 0; j<TREECH; ++j) {
-			olddata[j] = node->children[j]->data[i];
+    assert(!Node_isLeaf(node));
+    for (int i = 0; i<GRIDNUM; ++i) {
+        assert(Node_isLeaf(node->children[i]));
+        Array *olddata[TREECH];
+        for (int j = 0; j<TREECH; ++j) {
+            olddata[j] = node->children[j]->data[i].source;
         }
-		tree->gridinfo[i].downsample(olddata, node->data[i]);
-		for (int j = 0; j<TREECH; ++j) {
-			DESTROY(Node, node->children[j]);
-		}
-	}
+        tree->gridinfo[i].downsample(olddata, node->data[i].source);
+        for (int j = 0; j<TREECH; ++j) {
+            DESTROY(Node, node->children[j]);
+        }
+    }
 }
 
 static Buffer** createBuffers(uint64_t size[DIM])
 {
     Buffer **buffers = MALLOCN(Buffer*, GRIDNUM);
-    for (int i = 0; i<GRIDNUM; ++i) {
+    for (int i = 0; i<GRIDNUM*2; ++i) {
         buffers[i] = Buffer_create(sizeof(Node), sizeof(Node), size);
     }
     return buffers;
@@ -171,25 +228,25 @@ static Buffer** createBuffers(uint64_t size[DIM])
 
 Tree *Tree_create()
 {
-	Tree *tree = MALLOC(Tree);
-	for (int i = 0; i<DIM; ++i) {
+    Tree *tree = MALLOC(Tree);
+    for (int i = 0; i<DIM; ++i) {
         tree->blocksize[i] = BLOCKSIZE + 2;
-	}
+    }
 
-	@
-	local i = 0
-	for _,grid in pairs(args.grids) do
+    @
+    local i = 0
+    for _,grid in pairs(args.grids) do
         emit{'tree->gridinfo[$i].itemsize = sizeof($gd);\n',
              i = i, gd = grid.datatype}
         emit{'tree->gridinfo[$i].alignment = sizeof($gd);\n',
              i = i, gd = grid.datatype}
         emit{'tree->gridinfo[$i].upsample = &$name;\n',
-             i = i, name = upname(grid.upsample)}
+             i = i, name = blockUpsamplerName(grid.upsample)}
         emit{'tree->gridinfo[$i].downsample = &$name;\n',
-             i = i, name = downname(grid.downsample)}
+             i = i, name = blockDownsamplerName(grid.downsample)}
         i=i+1
-	end
-	@
+    end
+    @
     Buffer **buffers = createBuffers(tree->blocksize);
     tree->root = Tree_createLeaf(tree, NULL, buffers, pos0, 0);
     free(buffers);
@@ -213,7 +270,9 @@ static void Node_updateAdjacency(Node *node)
         for (int i = 0; i<DIM; ++i) {
             off[i] = node->index & (1 << i) ? 1 : 0;
         }
-        
+        node->sync = false;
+        node->propagate = false;
+
         uint32_t t[] = {0, 1, 1, 1, 1, 2};
         @
         emitin(args.dim, 'for (int x$n=0; x$n<3; ++x$n) {\n', indp)
@@ -231,10 +290,14 @@ static void Node_updateAdjacency(Node *node)
         emiti('*adj = (*adj)->children[node->index ^ flip];\n')
         unind()
         emiti('}\n')
+        emiti('if (*adj != NULL && (Node_isLeaf(*adj) || Node_isLeaf(node))) node->sync = true;\n')
         emitin(args.dim, '}\n', unind)
         @
+        if (node->parent->sync || node->parent->propagate) {
+            node->propagate = true;
+        }
     }
-    
+
     if (!Node_isLeaf(node)) {
         for (int i = 0; i<TREECH; ++i) {
             Node_updateAdjacency(node->children[i]);
@@ -371,29 +434,46 @@ void Tree_restructure(Tree *tree)
     Node_updateAdjacency(tree->root);
 }
 
-bool Node_isInSameBuffer(Node* node1, Node* node2)
+static void Tree_propagateUp(Tree *tree, Node *node)
 {
-    return node1->data[0]->buffer = node2->data[0]->buffer;
+    if (!Node_isLeaf(node)) {
+        for (int i = 0; i<TREECH; ++i) {
+            Tree_propagateUp(tree, node->children[i]);
+        }
+    }
+    if (node->propagate) {
+        for (int i = 0; i<GRIDNUM; ++i) {
+            Array *data[TREECH];
+            for (int j = 0; j<TREECH; ++j) {
+                data[j] = node->children[j]->data[i].source;
+            }
+            tree->gridinfo[i].downsample(data, node->data[i].source);
+        }
+    }
 }
 
-void Tree_exchangeHalo(Tree *tree, Node* node1, Node* node2, uint32_t srcstart[DIM],
+static bool Node_isInSameBuffer(Node* node1, Node* node2)
+{
+    return node1->data[0].source->buffer = node2->data[0].source->buffer;
+}
+
+static void Node_exchangeHalo(Node* node1, Node* node2, uint32_t srcstart[DIM],
                        uint32_t srcend[DIM], uint32_t dststart[DIM])
 {
     if (node1 == NULL || node2 == NULL) {
         // TODO: boundary conditions
         return;
     }
-	if (Node_isInSameBuffer(node1, node2)) {
+    if (Node_isInSameBuffer(node1, node2)) {
         return;
     }
     @
     emitin(args.dim, 'for (uint32_t s$n = srcstart[$n-1], d$n = dststart[$n-1]; s$n < srcend[$n-1]; ++s$n, ++d$n) {\n', indp)
     local i = 0
     for _,grid in pairs(args.grids) do
-        print(i, grid)
-        emiti{'*GET($t, node1->data[$i]', t=grid.datatype, i=i}
+        emiti{'*GET($t, node1->data[$i].source', t=grid.datatype, i=i}
         emitn(args.dim, ', d$n')
-        emit{') = *GET($t, node2->data[$i]', t=grid.datatype, i=i}
+        emit{') = *GET($t, node2->data[$i].source', t=grid.datatype, i=i}
         emitn(args.dim, ', s$n')
         emit(');\n')
         i = i+1
@@ -402,15 +482,42 @@ void Tree_exchangeHalo(Tree *tree, Node* node1, Node* node2, uint32_t srcstart[D
     @
 }
 
-void Tree_synchronizeNode(Tree *tree, Node *node)
+static void Tree_propagateDown(Tree *tree, Node *node)
+{
+    if (Node_isLeaf(node)) {
+        return;
+    }
+    if (node->propagate || node->sync) {
+        @
+        emitin(args.dim, 'for (uint32_t x$n = 0; x$n<3; ++x$n) {\n', indp)
+        emiti('int32_t srcstart[DIM], srcend[DIM], dststart[DIM];\n')
+        emitin(args.dim, 'srcstart[$n-1] = x$n == 0 ? BLOCKSIZE+1 : -1;\n')
+        emitin(args.dim, 'srcend[$n-1] = x$n == 2 ? 1 : BLOCKSIZE+2;\n')
+        emitin(args.dim, 'dststart[$n-1] = x$n == 0 ? -1 : BLOCKSIZE+1;\n')
+        local i = 0
+        for _,grid in pairs(args.grids) do
+            emiti{'$func(node->data[$i].source, node->children[0]->data[$i].source, srcstart, srcend, dststart);\n',
+                    func=rangeUpsamplerName(grid.upsample),
+                    i=i}
+            i = i+1
+        end
+        emitin(args.dim, '}\n', unind)
+        @
+    }
+    for (int i = 0; i<TREECH; ++i) {
+        Tree_propagateDown(tree, node->children[i]);
+    }
+}
+
+static void Node_synchronize(Node *node)
 {
     @
     emitin(args.dim, 'for (uint32_t x$n = 0; x$n<3; ++x$n) {\n', indp)
     emiti('uint32_t srcstart[DIM], srcend[DIM], dststart[DIM];\n')
-    emitin(args.dim, 'srcstart[$n-1] = x$n == 0 ? BLOCKSIZE-1 : 0;\n')
-    emitin(args.dim, 'srcend[$n-1] = x$n == 2 ? 1 : BLOCKSIZE;\n')
-    emitin(args.dim, 'dststart[$n-1] = x$n == 0 ? 0 : BLOCKSIZE-1;\n')
-    emiti('Tree_exchangeHalo(tree, node, *GET(Node*, node->adjacent')
+    emitin(args.dim, 'srcstart[$n-1] = x$n == 0 ? BLOCKSIZE : 1;\n')
+    emitin(args.dim, 'srcend[$n-1] = x$n == 2 ? 2 : BLOCKSIZE+1;\n')
+    emitin(args.dim, 'dststart[$n-1] = x$n == 0 ? 1 : BLOCKSIZE;\n')
+    emiti('Node_exchangeHalo(node, *GET(Node*, node->adjacent')
     emitn(args.dim, ', x$n')
     emit('), srcstart, srcend, dststart);\n')
     emitin(args.dim, '}\n', unind)
@@ -419,7 +526,8 @@ void Tree_synchronizeNode(Tree *tree, Node *node)
 
 void Tree_synchronize(Tree *tree)
 {
-    
+    Tree_propagateUp(tree, tree->root);
+    Node_synchronize(tree->root);
 }
 
 static void Tree_exportNode(Tree* tree, Node* node, uint32_t pos[2*DIM], FILE *handle)
@@ -429,7 +537,7 @@ static void Tree_exportNode(Tree* tree, Node* node, uint32_t pos[2*DIM], FILE *h
         for (int i = 0; i<2*DIM; i+=2) {
             fprintf(handle, "%f ", (double)pos[i]/pos[i+1]);
         }
-        fprintf(handle, "\n%p\n\n", node->data[0]->buffer);
+        fprintf(handle, "\n%p\n\n", node->data[0].source->buffer);
     } else {
         fprintf(handle, "\n");
         for (int i = 0; i<TREECH; ++i) {
@@ -453,3 +561,48 @@ void Tree_export(Tree* tree, const char* file)
     Tree_exportNode(tree, tree->root, pos, handle);
     fclose(handle);
 }
+
+
+@
+local i = 0
+for name,grid in pairs(args.grids) do
+    local tfunc = 'Tree_'..name..'_applyKernel'
+    local nfunc = 'Node_'..name..'_applyKernel'
+    emiti{'void $func(Node *node, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]))\n{\n', func=nfunc}
+    ind()
+    emiti{'int grid = $index;\n', index=i}
+    emiti('if (Node_isLeaf(node)) {\n')
+    ind()
+    emiti('uint32_t from[DIM] = {')
+    emitn(args.dim, '1, ')
+    emit('};\n')
+    emiti('uint32_t to[DIM] = {')
+    emitn(args.dim, 'BLOCKSIZE+1, ')
+    emit('};\n')
+    emiti('kernel(node->data[grid].source, node->data[grid].target, from, to);\n')
+    unind()
+    emiti('} else {\n')
+    ind()
+    emiti{'$func(node, kernel);\n', func=nfunc}
+    unind()
+    emiti('}\n')
+    unind()
+    emiti('}\n')
+    emiti{'void $func(Tree *tree, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]))\n{\n', func=tfunc}
+    ind()
+    emiti{'$func(tree->root, kernel);\n', func=nfunc}
+    unind()
+    emiti('}\n\n')
+    i=i+1
+end
+@
+/*
+for i=0,math.floor(args.dim^3)-1 do
+    emit('GET($1, src', grid.datatype)
+    for j=1,args.dim do
+        local off = i % math.floor(3^j) - 1
+        emit{', x$j+$off', j=j, off=off}
+    end
+    emit('), ')
+end
+*/
