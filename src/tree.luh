@@ -51,4 +51,8 @@ for name,grid in pairs(args.grids) do
     local func = 'Tree_'..name..'_applyKernel'
     emit{'void $func(Tree *tree, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]));\n', func=func}
 end
+for name,kernel in pairs(args.kernels) do
+    local func = 'Kernel_'..name
+    emit{'void $func(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]);', func=func}
+end
 @

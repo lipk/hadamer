@@ -30,7 +30,7 @@ end@
 #define DIM @emit(args.dim)@
 #define TREECH @emit(math.floor(2^args.dim))@
 #define BLOCKSIZE @emit(args.blocksize)@
-#define BLOCKMEMSIZE @emit(math.floor(args.blocksize)^args.dim)@
+#define BLOCKMEMSIZE @emit(math.floor(args.blocksize^args.dim))@
 #define ADJNUM @emit(math.floor(3^args.dim))@
 
 #define DOWNSAMPLE_FUNC(name, datatype) \

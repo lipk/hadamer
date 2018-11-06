@@ -226,33 +226,6 @@ static Buffer** createBuffers(uint64_t size[DIM])
     return buffers;
 }
 
-Tree *Tree_create()
-{
-    Tree *tree = MALLOC(Tree);
-    for (int i = 0; i<DIM; ++i) {
-        tree->blocksize[i] = BLOCKSIZE + 2;
-    }
-
-    @
-    local i = 0
-    for _,grid in pairs(args.grids) do
-        emit{'tree->gridinfo[$i].itemsize = sizeof($gd);\n',
-             i = i, gd = grid.datatype}
-        emit{'tree->gridinfo[$i].alignment = sizeof($gd);\n',
-             i = i, gd = grid.datatype}
-        emit{'tree->gridinfo[$i].upsample = &$name;\n',
-             i = i, name = blockUpsamplerName(grid.upsample)}
-        emit{'tree->gridinfo[$i].downsample = &$name;\n',
-             i = i, name = blockDownsamplerName(grid.downsample)}
-        i=i+1
-    end
-    @
-    Buffer **buffers = createBuffers(tree->blocksize);
-    tree->root = Tree_createLeaf(tree, NULL, buffers, pos0, 0);
-    free(buffers);
-    return tree;
-}
-
 static void Node_updateAdjacency(Node *node)
 {
     @
@@ -303,6 +276,34 @@ static void Node_updateAdjacency(Node *node)
             Node_updateAdjacency(node->children[i]);
         }
     }
+}
+
+Tree *Tree_create()
+{
+    Tree *tree = MALLOC(Tree);
+    for (int i = 0; i<DIM; ++i) {
+        tree->blocksize[i] = BLOCKSIZE + 2;
+    }
+
+    @
+    local i = 0
+    for _,grid in pairs(args.grids) do
+        emit{'tree->gridinfo[$i].itemsize = sizeof($gd);\n',
+             i = i, gd = grid.datatype}
+        emit{'tree->gridinfo[$i].alignment = sizeof($gd);\n',
+             i = i, gd = grid.datatype}
+        emit{'tree->gridinfo[$i].upsample = &$name;\n',
+             i = i, name = blockUpsamplerName(grid.upsample)}
+        emit{'tree->gridinfo[$i].downsample = &$name;\n',
+             i = i, name = blockDownsamplerName(grid.downsample)}
+        i=i+1
+    end
+    @
+    Buffer **buffers = createBuffers(tree->blocksize);
+    tree->root = Tree_createLeaf(tree, NULL, buffers, pos0, 0);
+    Node_updateAdjacency(tree->root);
+    free(buffers);
+    return tree;
 }
 
 static void Node_calculateRefinePlan(Node *node)
@@ -564,6 +565,28 @@ void Tree_export(Tree* tree, const char* file)
 
 
 @
+for name,kernel in pairs(args.kernels) do
+    emiti('void Kernel_'..name..'(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]) {\n')
+    ind()
+    emitin(args.dim, 'for (int32_t x$n = from[$n-1]; x$n<to[$n-1]; ++x$n) {\n', indp)
+    emiti(name..'(\n')
+    ind()
+    for i=0,math.floor(3^args.dim)-1 do
+        emiti('GET($1, src', kernel.datatype)
+        for j=1,args.dim do
+            local off = math.floor(i / 3^(j-1)) % 3 - 1
+            emit{', x$j+$off', j=j, off=off}
+        end
+        emit('),\n')
+    end
+    emiti('GET($1, dst', kernel.datatype)
+    emitn(args.dim, ', x$n')
+    emit('));\n')
+    unind()
+    emitin(args.dim, '}\n', unind)
+    unind()
+    emiti('}\n')
+end
 local i = 0
 for name,grid in pairs(args.grids) do
     local tfunc = 'Tree_'..name..'_applyKernel'
@@ -590,19 +613,10 @@ for name,grid in pairs(args.grids) do
     emiti('}\n')
     emiti{'void $func(Tree *tree, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM]))\n{\n', func=tfunc}
     ind()
+    emiti('Tree_synchronize(tree);\n')
     emiti{'$func(tree->root, kernel);\n', func=nfunc}
     unind()
     emiti('}\n\n')
     i=i+1
 end
 @
-/*
-for i=0,math.floor(args.dim^3)-1 do
-    emit('GET($1, src', grid.datatype)
-    for j=1,args.dim do
-        local off = i % math.floor(3^j) - 1
-        emit{', x$j+$off', j=j, off=off}
-    end
-    emit('), ')
-end
-*/
