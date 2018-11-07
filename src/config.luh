@@ -48,7 +48,7 @@ static inline void name(@
     end@)
 
 #define KERNEL_FUNC(name, datatype) \
-static inline void name(@
+static inline void name(int *action, @
     for i=1,math.floor(3^args.dim) do
         local suffix = ''
         emit('datatype *x$1, ', i)

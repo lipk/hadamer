@@ -221,6 +221,7 @@ void test_kernel()
 {
     Tree *tree = Tree_create();
     Tree_mass_applyKernel(tree, &Kernel_blur);
+    Tree_mass_applyKernel(tree, &Kernel_blur);
 }
 
 int main() {
