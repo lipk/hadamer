@@ -1,4 +1,4 @@
-TARGET=2d
+TARGET=3d
 
 CFLAGS= -g -std=c11 -Isrc -Ibuild/gen -Itest/$(TARGET)/
 CC=gcc

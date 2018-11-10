@@ -220,15 +220,16 @@ void test_tall_tree()
 void test_kernel()
 {
     Tree *tree = Tree_create();
-    Tree_mass_applyKernel(tree, &Kernel_blur);
-    Tree_mass_applyKernel(tree, &Kernel_blur);
+    for (int i = 0; i<3; ++i) {
+        Tree_mass_applyKernel(tree, &Kernel_blur);
+    }
 }
 
 int main() {
-    test_basic();
-    test_sampling();
-    test_merge_plan_simple();
-    test_tall_tree();
+//    test_basic();
+//    test_sampling();
+//    test_merge_plan_simple();
+//    test_tall_tree();
     test_kernel();
     return 0;
 }

@@ -171,6 +171,7 @@ static Node* Tree_createLeaf(Tree *tree, Node *parent, Buffer *buffers[2*GRIDNUM
         adjsize[i] = 3;
     }
     leaf->adjacent = Array_createWithBuffer(sizeof(Node*), sizeof(Node*), adjsize);
+    Vector_init(&leaf->refplan);
     return leaf;
 }
 
@@ -219,7 +220,7 @@ static void Tree_mergeNode(Tree *tree, Node* node) {
 
 static Buffer** createBuffers(uint64_t size[DIM])
 {
-    Buffer **buffers = MALLOCN(Buffer*, GRIDNUM);
+    Buffer **buffers = MALLOCN(Buffer*, GRIDNUM*2);
     for (int i = 0; i<GRIDNUM*2; ++i) {
         buffers[i] = Buffer_create(sizeof(Node), sizeof(Node), size);
     }
@@ -257,8 +258,8 @@ static void Node_updateAdjacency(Node *node)
         emit(');\n')
         emiti('if (*adj != NULL && !Node_isLeaf(*adj)) {\n')
         ind()
-        emiti('uint32_t flip = (1-(x1 % 2)) | ')
-        emitn({2, args.dim}, '((1-(x$n % 2)) << ($n-1))')
+        emiti('uint32_t flip = (1-(x1 % 2))')
+        emitn({2, args.dim}, ' | ((1-(x$n % 2)) << ($n-1))')
         emit(';\n')
         emiti('*adj = (*adj)->children[node->index ^ flip];\n')
         unind()
@@ -350,16 +351,14 @@ static void Node_calculateRefinePlan(Node *node)
                     if (merged != NULL) {
                         DESTROY(RefinePlan, node->refplan.data[pi]);
                         DESTROY(RefinePlan, node->refplan.data[pj]);
-                        Vector_swapErase(&node->refplan, pi);
+                        assert(Vector_swapErase(&node->refplan, pi) == NULL);
                         if (pj == node->refplan.size) {
                             pj = pi;
                         }
-                        Vector_swapErase(&node->refplan, pj);
+                        assert(Vector_swapErase(&node->refplan, pj) == NULL);
                         Vector_push(&node->refplan, merged);
                         changed = true;
-                        if (pi == node->refplan.size) {
-                            break;
-                        }
+                        break;
                     }
                 }
             }
