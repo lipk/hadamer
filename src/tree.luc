@@ -563,37 +563,32 @@ void Tree_export(Tree* tree, const char* file)
 }
 
 @
+local i = 0
 for name,kernel in pairs(args.kernels) do
-    emiti('void Kernel_'..name..'(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM], int *action) {\n')
+    emiti('void Kernel_'..name..'(ArrayPair data[GRIDNUM], uint32_t from[DIM], uint32_t to[DIM], int *action) {\n')
     ind()
     emiti('*action = DEREFINE;\n')
     emitin(args.dim, 'for (int32_t x$n = from[$n-1]; x$n<to[$n-1]; ++x$n) {\n', indp)
     emiti('int pointaction = NOTHING;\n')
-    emiti(name..'(&pointaction,\n')
-    ind()
-    for i=0,math.floor(3^args.dim)-1 do
-        emiti('GET($1, src', kernel.datatype)
-        for j=1,args.dim do
-            local off = math.floor(i / 3^(j-1)) % 3 - 1
-            emit{', x$j+$off', j=j, off=off}
-        end
-        emit('),\n')
-    end
-    emiti('GET($1, dst', kernel.datatype)
+    emiti('*GET($1, data[$2].target', kernel.datatype, i)
     emitn(args.dim, ', x$n')
-    emit('));\n')
+    emit(') = ')
+    emit(name..'(&pointaction, data')
+    emitn(args.dim, ', x$n')
+    emit(');\n')
     unind()
     emiti('*action |= pointaction & REFINE;\n')
     emiti('*action &= pointaction & DEREFINE | REFINE;\n')
     emitin(args.dim, '}\n', unind)
     unind()
     emiti('}\n')
+    i = i+1
 end
-local i = 0
+i = 0
 for name,grid in pairs(args.grids) do
     local tfunc = 'Tree_'..name..'_applyKernel'
     local nfunc = 'Node_'..name..'_applyKernel'
-    emiti{'void $func(Node *node, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM], int *action))\n{\n', func=nfunc}
+    emiti{'void $func(Node *node, void (*kernel)(ArrayPair data[GRIDNUM], uint32_t from[DIM], uint32_t to[DIM], int *action))\n{\n', func=nfunc}
     ind()
     emiti{'int grid = $index;\n', index=i}
     emiti('if (Node_isLeaf(node)) {\n')
@@ -604,7 +599,7 @@ for name,grid in pairs(args.grids) do
     emiti('uint32_t to[DIM] = {')
     emitn(args.dim, 'BLOCKSIZE+1, ')
     emit('};\n')
-    emiti('kernel(node->data[grid].source, node->data[grid].target, from, to, &node->action);\n')
+    emiti('kernel(node->data, from, to, &node->action);\n')
     unind()
     emiti('} else {\n')
     ind()
@@ -617,7 +612,7 @@ for name,grid in pairs(args.grids) do
     emiti('}\n')
     unind()
     emiti('}\n')
-    emiti{'void $func(Tree *tree, void (*kernel)(Array *src, Array *dst, uint32_t from[DIM], uint32_t to[DIM], int *action))\n{\n', func=tfunc}
+    emiti{'void $func(Tree *tree, void (*kernel)(ArrayPair data[GRIDNUM], uint32_t from[DIM], uint32_t to[DIM], int *action))\n{\n', func=tfunc}
     ind()
     emiti('Tree_synchronize(tree);\n')
     emiti{'$func(tree->root, kernel);\n', func=nfunc}

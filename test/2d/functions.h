@@ -12,6 +12,6 @@ UPSAMPLE_FUNC(upsample, double) {
 }
 
 KERNEL_FUNC(blur, double) {
-    *y = (*x2 + *x4 + *x5 + *x6 + *x8) / 5;
     *action = REFINE;
+    return *CELL(data, mass, x1, x2);
 }

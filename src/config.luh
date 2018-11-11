@@ -27,6 +27,8 @@ end@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <util.h>
+
 #define DIM @emit(args.dim)@
 #define TREECH @emit(math.floor(2^args.dim))@
 #define BLOCKSIZE @emit(args.blocksize)@
@@ -47,17 +49,21 @@ static inline void name(@
         emit(', datatype *y' .. i)
     end@)
 
-#define KERNEL_FUNC(name, datatype) \
-static inline void name(int *action, @
-    for i=1,math.floor(3^args.dim) do
-        local suffix = ''
-        emit('datatype *x$1, ', i)
-    end
-    emit('datatype *y')@)
+@
+local i = 0
+for name,grid in pairs(args.grids) do
+    emiti{'#define GRID_'..name..' $i\n', i=i}
+    emiti{'typedef $datatype '..name..'_data_t;\n', datatype=grid.datatype}
+    i = i+1
+end
+emiti{'#define GRIDNUM $i\n', i=i}
+@
 
-#define GRIDNUM @
-    i = 0
-    for _ in pairs(args.grids) do
-        i = i+1
-    end
-    emit(i)@
+#define CELL(data, grid@emitn(args.dim, ', x$n')@) \
+GET(CONCAT(grid, _data_t), data[CONCAT(GRID_, grid)].source@emitn(args.dim, ', x$n')@)
+
+#define KERNEL_FUNC(name, datatype) \
+static inline datatype name(int *action, ArrayPair data[GRIDNUM]@
+    for i=1,args.dim do
+        emit(', uint64_t x$1', i)
+    end@)

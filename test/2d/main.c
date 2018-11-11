@@ -226,10 +226,10 @@ void test_kernel()
 }
 
 int main() {
-//    test_basic();
-//    test_sampling();
-//    test_merge_plan_simple();
-//    test_tall_tree();
+    test_basic();
+    test_sampling();
+    test_merge_plan_simple();
+    test_tall_tree();
     test_kernel();
     return 0;
 }
